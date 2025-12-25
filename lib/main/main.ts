@@ -1,11 +1,115 @@
-import { app, BrowserWindow } from 'electron'
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { createAppWindow } from './app'
+import { 
+  setRepoPath, 
+  getRepoPath, 
+  getBranches, 
+  getBranchesWithMetadata, 
+  getWorktrees,
+  checkoutBranch,
+  checkoutRemoteBranch,
+  getPullRequests,
+  openPullRequest,
+  openBranchInGitHub,
+  pullBranch,
+  checkoutPRBranch,
+} from './git-service'
 
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  // Register git IPC handlers
+  ipcMain.handle('select-repo', async () => {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory'],
+      title: 'Select Git Repository',
+    });
+    
+    if (result.canceled || result.filePaths.length === 0) {
+      return null;
+    }
+    
+    const path = result.filePaths[0];
+    setRepoPath(path);
+    return path;
+  });
+
+  ipcMain.handle('get-repo-path', () => {
+    return getRepoPath();
+  });
+
+  ipcMain.handle('get-branches', async () => {
+    try {
+      return await getBranches();
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('get-branches-with-metadata', async () => {
+    try {
+      return await getBranchesWithMetadata();
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('get-worktrees', async () => {
+    try {
+      return await getWorktrees();
+    } catch (error) {
+      return { error: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('checkout-branch', async (_, branchName: string) => {
+    try {
+      return await checkoutBranch(branchName);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('checkout-remote-branch', async (_, remoteBranch: string) => {
+    try {
+      return await checkoutRemoteBranch(remoteBranch);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('open-worktree', async (_, worktreePath: string) => {
+    try {
+      // Open the worktree folder in Finder/Explorer
+      await shell.openPath(worktreePath);
+      return { success: true, message: `Opened ${worktreePath}` };
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('get-pull-requests', async () => {
+    return await getPullRequests();
+  });
+
+  ipcMain.handle('open-pull-request', async (_, url: string) => {
+    return await openPullRequest(url);
+  });
+
+  ipcMain.handle('open-branch-in-github', async (_, branchName: string) => {
+    return await openBranchInGitHub(branchName);
+  });
+
+  ipcMain.handle('pull-branch', async (_, remoteBranch: string) => {
+    return await pullBranch(remoteBranch);
+  });
+
+  ipcMain.handle('checkout-pr-branch', async (_, branchName: string) => {
+    return await checkoutPRBranch(branchName);
+  });
+
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')
   // Create app window
