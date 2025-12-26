@@ -473,9 +473,11 @@ export function getWorktreePath(worktreePath: string): string {
 // Helper to apply a git diff via stdin
 async function applyDiff(diff: string, targetDir: string): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = exec('git apply --3way -', { cwd: targetDir }, (error) => {
+    const child = exec('git apply --3way -', { cwd: targetDir }, (error, _stdout, stderr) => {
       if (error) {
-        reject(error);
+        // Include stderr in the error message for better debugging
+        const fullError = new Error(`${error.message}${stderr ? `: ${stderr}` : ''}`);
+        reject(fullError);
       } else {
         resolve();
       }
@@ -486,65 +488,109 @@ async function applyDiff(diff: string, targetDir: string): Promise<void> {
 }
 
 // Apply a worktree's changes to the current working directory (non-destructive copy)
-// This copies uncommitted changes from the worktree as uncommitted changes here
-export async function applyWorktree(worktreePath: string, worktreeBranch: string): Promise<{ success: boolean; message: string; stashed?: string }> {
+// This copies ALL changes from the worktree - both committed and uncommitted
+export async function applyWorktree(worktreePath: string, worktreeBranch: string | null): Promise<{ success: boolean; message: string; stashed?: string }> {
   if (!git || !repoPath) throw new Error('No repository selected');
+  
+  const displayName = worktreeBranch || path.basename(worktreePath);
   
   try {
     // First, stash any uncommitted changes in the main repo
     const stashResult = await stashChanges();
     
-    // Get uncommitted changes from the worktree (both staged and unstaged)
-    const { stdout: unstagedDiff } = await execAsync('git diff', { cwd: worktreePath });
-    const { stdout: stagedDiff } = await execAsync('git diff --cached', { cwd: worktreePath });
+    // Get the worktree's current HEAD commit
+    const { stdout: worktreeHead } = await execAsync('git rev-parse HEAD', { cwd: worktreePath });
+    const worktreeCommit = worktreeHead.trim();
     
-    const hasUnstagedChanges = unstagedDiff.trim().length > 0;
-    const hasStagedChanges = stagedDiff.trim().length > 0;
+    // Get our current HEAD commit
+    const { stdout: ourHead } = await execAsync('git rev-parse HEAD', { cwd: repoPath });
+    const ourCommit = ourHead.trim();
     
-    if (!hasUnstagedChanges && !hasStagedChanges) {
+    // Strategy: Get the full diff between our current state and the worktree's current state
+    // This captures BOTH committed changes AND uncommitted changes
+    
+    // Step 1: Get uncommitted changes from the worktree (working directory vs HEAD)
+    const { stdout: worktreeUncommitted } = await execAsync('git diff HEAD', { cwd: worktreePath });
+    
+    // Step 2: Get committed changes - diff between our HEAD and the worktree's HEAD
+    let committedDiff = '';
+    if (worktreeCommit !== ourCommit) {
+      try {
+        // Direct diff between commits
+        const { stdout } = await execAsync(`git diff ${ourCommit} ${worktreeCommit}`, { cwd: repoPath });
+        committedDiff = stdout;
+      } catch {
+        // If that fails, try from the worktree's perspective
+        try {
+          const { stdout } = await execAsync(`git diff ${ourCommit} HEAD`, { cwd: worktreePath });
+          committedDiff = stdout;
+        } catch {
+          // Can't compare commits, will just use uncommitted changes
+        }
+      }
+    }
+    
+    const hasUncommitted = worktreeUncommitted.trim().length > 0;
+    const hasCommitted = committedDiff.trim().length > 0;
+    
+    if (!hasUncommitted && !hasCommitted) {
       return {
         success: true,
-        message: `No uncommitted changes in worktree '${worktreeBranch}'`,
+        message: `No changes to copy from '${displayName}'`,
         stashed: stashResult.stashed ? stashResult.message : undefined,
       };
     }
     
-    // Apply the diffs to the main repo
-    if (hasUnstagedChanges) {
+    // Apply committed changes first (if any)
+    if (hasCommitted) {
       try {
-        await applyDiff(unstagedDiff, repoPath);
+        await applyDiff(committedDiff, repoPath);
       } catch (applyError) {
         const msg = (applyError as Error).message;
-        if (msg.includes('patch does not apply') || msg.includes('CONFLICT')) {
+        if (msg.includes('patch does not apply') || msg.includes('conflict') || msg.includes('CONFLICT')) {
           return {
             success: false,
-            message: `Conflicts applying changes. Some files may differ between worktree and main repo.`,
+            message: `Conflicts applying committed changes from '${displayName}'. Files may have diverged.`,
             stashed: stashResult.stashed ? stashResult.message : undefined,
           };
         }
-        throw applyError;
+        // For other errors, include the message
+        return {
+          success: false,
+          message: `Error applying changes: ${msg}`,
+          stashed: stashResult.stashed ? stashResult.message : undefined,
+        };
       }
     }
     
-    if (hasStagedChanges) {
+    // Apply uncommitted changes (if any)
+    if (hasUncommitted) {
       try {
-        await applyDiff(stagedDiff, repoPath);
+        await applyDiff(worktreeUncommitted, repoPath);
       } catch (applyError) {
         const msg = (applyError as Error).message;
-        if (msg.includes('patch does not apply') || msg.includes('CONFLICT')) {
+        if (msg.includes('patch does not apply') || msg.includes('conflict') || msg.includes('CONFLICT')) {
           return {
             success: false,
-            message: `Conflicts applying staged changes. Some files may differ between worktree and main repo.`,
+            message: `Conflicts applying uncommitted changes. Files may have diverged.`,
             stashed: stashResult.stashed ? stashResult.message : undefined,
           };
         }
-        throw applyError;
+        return {
+          success: false,
+          message: `Error applying uncommitted changes: ${msg}`,
+          stashed: stashResult.stashed ? stashResult.message : undefined,
+        };
       }
     }
+    
+    const parts = [];
+    if (hasCommitted) parts.push('committed');
+    if (hasUncommitted) parts.push('uncommitted');
     
     return {
       success: true,
-      message: `Copied changes from '${worktreeBranch}' to working directory`,
+      message: `Copied ${parts.join(' and ')} changes from '${displayName}'`,
       stashed: stashResult.stashed ? stashResult.message : undefined,
     };
   } catch (error) {

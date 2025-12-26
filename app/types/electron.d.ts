@@ -111,7 +111,7 @@ export interface ElectronAPI {
   checkoutBranch: (branchName: string) => Promise<CheckoutResult>;
   checkoutRemoteBranch: (remoteBranch: string) => Promise<CheckoutResult>;
   openWorktree: (worktreePath: string) => Promise<{ success: boolean; message: string }>;
-  applyWorktree: (worktreePath: string, worktreeBranch: string) => Promise<CheckoutResult>;
+  applyWorktree: (worktreePath: string, worktreeBranch: string | null) => Promise<CheckoutResult>;
   removeWorktree: (worktreePath: string, force?: boolean) => Promise<{ success: boolean; message: string }>;
   // Pull requests
   getPullRequests: () => Promise<PullRequestsResult>;

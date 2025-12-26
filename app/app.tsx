@@ -199,7 +199,7 @@ export default function App() {
   // Worktree context menu actions
   const handleWorktreeApply = async (wt: Worktree) => {
     closeContextMenu()
-    if (!wt.branch || switching) return
+    if (switching) return
     
     setSwitching(true)
     setStatus({ type: 'info', message: `Copying changes from ${wt.displayName}...` })
@@ -348,7 +348,7 @@ export default function App() {
       case 'worktree': {
         const wt = contextMenu.data as Worktree
         return [
-          { label: 'Copy Changes Here', action: () => handleWorktreeApply(wt), disabled: !wt.branch || switching },
+          { label: 'Copy Changes Here', action: () => handleWorktreeApply(wt), disabled: switching },
           { label: 'Open in Finder', action: () => handleWorktreeOpen(wt) },
           { label: 'Remove Worktree', action: () => handleWorktreeRemove(wt), disabled: switching },
         ]
@@ -407,7 +407,7 @@ export default function App() {
   }, [switching])
 
   const handleWorktreeDoubleClick = useCallback(async (worktree: Worktree) => {
-    if (!worktree.branch || switching) return
+    if (switching) return
     
     setSwitching(true)
     setStatus({ type: 'info', message: `Copying changes from ${worktree.displayName}...` })
@@ -425,7 +425,7 @@ export default function App() {
     } finally {
       setSwitching(false)
     }
-  }, [currentBranch, switching])
+  }, [switching])
 
   const handlePRDoubleClick = useCallback(async (pr: PullRequest) => {
     handlePRViewRemote(pr)
