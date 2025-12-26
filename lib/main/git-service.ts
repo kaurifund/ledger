@@ -410,8 +410,9 @@ export async function checkoutBranch(branchName: string): Promise<{ success: boo
     // Stash any uncommitted changes first
     const stashResult = await stashChanges();
     
-    // Checkout the branch
-    await git.checkout(branchName);
+    // Checkout the branch with --ignore-other-worktrees to allow checking out
+    // branches that are already checked out in other worktrees
+    await git.checkout(['--ignore-other-worktrees', branchName]);
     
     return {
       success: true,
@@ -512,8 +513,8 @@ export async function checkoutRemoteBranch(remoteBranch: string): Promise<{ succ
     // Check if local branch already exists
     const branches = await git.branchLocal();
     if (branches.all.includes(localBranchName)) {
-      // Just checkout existing local branch
-      await git.checkout(localBranchName);
+      // Just checkout existing local branch (allow even if checked out in worktree)
+      await git.checkout(['--ignore-other-worktrees', localBranchName]);
       return {
         success: true,
         message: `Switched to existing branch '${localBranchName}'`,
@@ -521,8 +522,8 @@ export async function checkoutRemoteBranch(remoteBranch: string): Promise<{ succ
       };
     }
     
-    // Create and checkout tracking branch
-    await git.checkout(['-b', localBranchName, '--track', remoteBranch.replace('remotes/', '')]);
+    // Create and checkout tracking branch (--ignore-other-worktrees for the checkout part)
+    await git.checkout(['--ignore-other-worktrees', '-b', localBranchName, '--track', remoteBranch.replace('remotes/', '')]);
     
     return {
       success: true,
@@ -923,11 +924,35 @@ export async function getPRFileDiff(prNumber: number, filePath: string): Promise
   if (!repoPath) return null;
 
   try {
-    const { stdout } = await execAsync(
-      `gh pr diff ${prNumber} -- "${filePath}"`,
-      { cwd: repoPath }
+    // gh pr diff doesn't support file filtering, so get full diff and parse
+    const { stdout: fullDiff } = await execAsync(
+      `gh pr diff ${prNumber}`,
+      { cwd: repoPath, maxBuffer: 10 * 1024 * 1024 } // 10MB buffer for large diffs
     );
-    return stdout;
+    
+    // Parse the unified diff to extract just the file we want
+    const lines = fullDiff.split('\n');
+    let inTargetFile = false;
+    const result: string[] = [];
+    
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      
+      // Check for diff header for a new file
+      if (line.startsWith('diff --git ')) {
+        // Check if this is the file we want
+        // Format: diff --git a/path/to/file b/path/to/file
+        const aPath = line.match(/a\/(.+?) b\//)?.[1];
+        const bPath = line.match(/ b\/(.+)$/)?.[1];
+        inTargetFile = aPath === filePath || bPath === filePath;
+      }
+      
+      if (inTargetFile) {
+        result.push(line);
+      }
+    }
+    
+    return result.length > 0 ? result.join('\n') : null;
   } catch (error) {
     console.error('Error fetching PR file diff:', error);
     return null;
@@ -1495,6 +1520,125 @@ export async function convertWorktreeToBranch(worktreePath: string): Promise<{ s
   }
 }
 
+// Apply changes from a worktree to the main repo
+export async function applyWorktreeChanges(worktreePath: string): Promise<{ success: boolean; message: string }> {
+  if (!git || !repoPath) throw new Error('No repository selected');
+
+  try {
+    // Check if this is the current worktree (main repo)
+    if (worktreePath === repoPath) {
+      return { success: false, message: 'Cannot apply from the main repository to itself' };
+    }
+
+    // Get the diff from the worktree as a patch
+    const { stdout: patchOutput } = await execAsync('git diff HEAD', { cwd: worktreePath });
+    
+    // Also get list of untracked files
+    const { stdout: untrackedOutput } = await execAsync('git ls-files --others --exclude-standard', { cwd: worktreePath });
+    const untrackedFiles = untrackedOutput.split('\n').filter(Boolean);
+
+    // Check if there are any changes
+    if (!patchOutput.trim() && untrackedFiles.length === 0) {
+      return { success: false, message: 'No changes to apply - worktree is clean' };
+    }
+
+    // Apply the patch if there are tracked file changes
+    if (patchOutput.trim()) {
+      // Write patch to a temp file
+      const tempPatchFile = path.join(repoPath, '.ledger-temp-patch');
+      try {
+        await fs.promises.writeFile(tempPatchFile, patchOutput);
+        await execAsync(`git apply --3way "${tempPatchFile}"`, { cwd: repoPath });
+        await fs.promises.unlink(tempPatchFile);
+      } catch (applyError) {
+        // If apply fails, try with less strict options
+        try {
+          await execAsync(`git apply --reject --whitespace=fix "${tempPatchFile}"`, { cwd: repoPath });
+          await fs.promises.unlink(tempPatchFile);
+        } catch {
+          try {
+            await fs.promises.unlink(tempPatchFile);
+          } catch { /* ignore */ }
+          return { success: false, message: 'Failed to apply changes - patch may have conflicts' };
+        }
+      }
+    }
+
+    // Copy untracked files
+    for (const file of untrackedFiles) {
+      const srcPath = path.join(worktreePath, file);
+      const destPath = path.join(repoPath, file);
+      
+      // Ensure destination directory exists
+      const destDir = path.dirname(destPath);
+      await fs.promises.mkdir(destDir, { recursive: true });
+      
+      // Copy the file
+      await fs.promises.copyFile(srcPath, destPath);
+    }
+
+    const folderName = path.basename(worktreePath);
+    return {
+      success: true,
+      message: `Applied changes from worktree: ${folderName}`,
+    };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+// Remove a worktree
+export async function removeWorktree(worktreePath: string, force: boolean = false): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    // Check if this is the current worktree (main repo)
+    if (worktreePath === repoPath) {
+      return { success: false, message: 'Cannot remove the main repository worktree' };
+    }
+
+    // Get worktree info to check for uncommitted changes
+    const worktrees = await getWorktrees();
+    const worktree = worktrees.find(wt => wt.path === worktreePath);
+    
+    if (!worktree) {
+      return { success: false, message: 'Worktree not found' };
+    }
+
+    // Check for uncommitted changes if not forcing
+    if (!force) {
+      try {
+        const { stdout: statusOutput } = await execAsync('git status --porcelain', { cwd: worktreePath });
+        if (statusOutput.trim()) {
+          return { success: false, message: 'Worktree has uncommitted changes. Use force to remove anyway.' };
+        }
+      } catch {
+        // If we can't check status, proceed with caution
+      }
+    }
+
+    // Remove the worktree
+    const args = ['worktree', 'remove'];
+    if (force) {
+      args.push('--force');
+    }
+    args.push(worktreePath);
+
+    await git.raw(args);
+
+    return {
+      success: true,
+      message: `Removed worktree: ${path.basename(worktreePath)}`,
+    };
+  } catch (error) {
+    const errorMsg = (error as Error).message;
+    if (errorMsg.includes('contains modified or untracked files')) {
+      return { success: false, message: 'Worktree has uncommitted changes. Use force to remove anyway.' };
+    }
+    return { success: false, message: errorMsg };
+  }
+}
+
 // Checkout a PR branch (by branch name)
 export async function checkoutPRBranch(branchName: string): Promise<{ success: boolean; message: string; stashed?: string }> {
   if (!git) throw new Error('No repository selected');
@@ -1509,12 +1653,12 @@ export async function checkoutPRBranch(branchName: string): Promise<{ success: b
     // Check if local branch exists
     const branches = await git.branchLocal();
     if (branches.all.includes(branchName)) {
-      // Checkout and pull
-      await git.checkout(branchName);
+      // Checkout (allow even if checked out in worktree) and pull
+      await git.checkout(['--ignore-other-worktrees', branchName]);
       await git.pull('origin', branchName);
     } else {
-      // Create tracking branch
-      await git.checkout(['-b', branchName, '--track', `origin/${branchName}`]);
+      // Create tracking branch (--ignore-other-worktrees for the checkout part)
+      await git.checkout(['--ignore-other-worktrees', '-b', branchName, '--track', `origin/${branchName}`]);
     }
     
     return {
