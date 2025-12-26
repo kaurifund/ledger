@@ -1976,6 +1976,8 @@ export default function App() {
               <PRReviewPanel 
                 pr={sidebarFocus.data as PullRequest}
                 formatRelativeTime={formatRelativeTime}
+                onCheckout={handlePRCheckout}
+                switching={switching}
               />
             ) : sidebarFocus ? (
               <SidebarDetailPanel 
@@ -2363,9 +2365,11 @@ interface BranchDetailPanelProps {
   branch: Branch;
   formatDate: (date?: string) => string;
   onStatusChange?: (status: StatusMessage | null) => void;
+  onCheckoutBranch?: (branch: Branch) => void;
+  switching?: boolean;
 }
 
-function BranchDetailPanel({ branch, formatDate, onStatusChange }: BranchDetailPanelProps) {
+function BranchDetailPanel({ branch, formatDate, onStatusChange, onCheckoutBranch, switching }: BranchDetailPanelProps) {
   const [creatingPR, setCreatingPR] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [branchDiff, setBranchDiff] = useState<BranchDiff | null>(null);
@@ -2592,6 +2596,15 @@ function BranchDetailPanel({ branch, formatDate, onStatusChange }: BranchDetailP
       {/* Actions */}
       {!showPRForm && (
         <div className="detail-actions">
+          {!branch.current && onCheckoutBranch && (
+            <button 
+              className="btn btn-primary"
+              onClick={() => onCheckoutBranch(branch)}
+              disabled={switching}
+            >
+              {switching ? 'Checking out...' : 'Checkout'}
+            </button>
+          )}
           {branch.current && (
             <button 
               className="btn btn-primary"
@@ -2615,12 +2628,6 @@ function BranchDetailPanel({ branch, formatDate, onStatusChange }: BranchDetailP
           >
             View on GitHub
           </button>
-        </div>
-      )}
-      
-      {!branch.current && !showPRForm && (
-        <div className="detail-actions-hint">
-          Double-click to switch to this branch
         </div>
       )}
 
@@ -2734,7 +2741,7 @@ interface SidebarDetailPanelProps {
   onCheckoutWorktree?: (worktree: Worktree) => void;
 }
 
-function SidebarDetailPanel({ focus, formatRelativeTime, formatDate, currentBranch, switching, onStatusChange, onRefresh, onClearFocus, onCheckoutBranch: _onCheckoutBranch, onCheckoutRemoteBranch, onCheckoutWorktree }: SidebarDetailPanelProps) {
+function SidebarDetailPanel({ focus, formatRelativeTime, formatDate, currentBranch, switching, onStatusChange, onRefresh, onClearFocus, onCheckoutBranch, onCheckoutRemoteBranch, onCheckoutWorktree }: SidebarDetailPanelProps) {
   switch (focus.type) {
     case 'pr': {
       // Handled by PRReviewPanel
@@ -2748,6 +2755,8 @@ function SidebarDetailPanel({ focus, formatRelativeTime, formatDate, currentBran
           branch={branch}
           formatDate={formatDate}
           onStatusChange={onStatusChange}
+          onCheckoutBranch={onCheckoutBranch}
+          switching={switching}
         />
       );
     }
@@ -3156,6 +3165,8 @@ function StagingPanel({ workingStatus, onRefresh, onStatusChange }: StagingPanel
 interface PRReviewPanelProps {
   pr: PullRequest;
   formatRelativeTime: (date: string) => string;
+  onCheckout?: (pr: PullRequest) => void;
+  switching?: boolean;
 }
 
 type PRTab = 'conversation' | 'files' | 'commits';
@@ -3168,7 +3179,7 @@ function isAIAuthor(login: string): boolean {
   return AI_AUTHORS.some(ai => lower.includes(ai)) || lower.endsWith('[bot]') || lower.endsWith('-bot');
 }
 
-function PRReviewPanel({ pr, formatRelativeTime }: PRReviewPanelProps) {
+function PRReviewPanel({ pr, formatRelativeTime, onCheckout, switching }: PRReviewPanelProps) {
   const [activeTab, setActiveTab] = useState<PRTab>('conversation');
   const [prDetail, setPrDetail] = useState<PRDetail | null>(null);
   const [reviewComments, setReviewComments] = useState<PRReviewComment[]>([]);
@@ -3553,8 +3564,17 @@ function PRReviewPanel({ pr, formatRelativeTime }: PRReviewPanelProps) {
 
       {/* Footer with actions */}
       <div className="pr-review-footer">
+        {onCheckout && (
+          <button 
+            className="btn btn-primary"
+            onClick={() => onCheckout(pr)}
+            disabled={switching}
+          >
+            {switching ? 'Checking out...' : 'Checkout'}
+          </button>
+        )}
         <button 
-          className="btn btn-primary"
+          className={`btn ${onCheckout ? 'btn-secondary' : 'btn-primary'}`}
           onClick={() => window.electronAPI.openPullRequest(pr.url)}
         >
           Open in GitHub
