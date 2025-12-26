@@ -1,5 +1,4 @@
-import type { BrowserWindow } from 'electron'
-import { shell } from 'electron'
+import { type BrowserWindow, shell } from 'electron'
 import { handle } from '@/lib/main/shared'
 
 export const registerWindowHandlers = (window: BrowserWindow) => {

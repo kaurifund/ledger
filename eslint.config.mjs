@@ -16,6 +16,7 @@ export default [
       '.eslintignore',
       '.eslintrc',
       '.prettierrc',
+      'test-results/**',
     ],
   },
   eslint.configs.recommended,
@@ -79,12 +80,19 @@ export default [
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
+          caughtErrorsIgnorePattern: '^_',
         },
       ],
-
-      // General rules
-      'no-console': ['warn', { allow: ['warn', 'error'] }],
       '@typescript-eslint/no-explicit-any': 'off',
+      '@typescript-eslint/explicit-function-return-type': 'off',
+      '@typescript-eslint/explicit-module-boundary-types': 'off',
+
+      // General code quality
+      'no-console': ['warn', { allow: ['warn', 'error'] }],
+      'prefer-const': 'warn',
+      'no-var': 'error',
+      'eqeqeq': ['error', 'always', { null: 'ignore' }],
+      'no-duplicate-imports': 'error',
 
       // Global modification rules
       'no-global-assign': [
@@ -95,15 +103,42 @@ export default [
       ],
     },
   },
-  // Add specific configuration for preload files
+  // Specific configuration for main process files
   {
-    files: ['app/**/*.ts', 'lib/**/*.ts', 'app/**/*.tsx', 'lib/**/*.tsx'],
+    files: ['lib/main/**/*.ts'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+        __dirname: 'readonly',
+        __filename: 'readonly',
+      },
+    },
+  },
+  // Specific configuration for renderer files
+  {
+    files: ['app/**/*.{ts,tsx}'],
     languageOptions: {
       globals: {
         process: 'readonly',
         console: 'readonly',
         window: 'readonly',
       },
+    },
+  },
+  // Specific configuration for test files
+  {
+    files: ['tests/**/*.ts', 'playwright.config.ts'],
+    languageOptions: {
+      globals: {
+        process: 'readonly',
+        console: 'readonly',
+      },
+    },
+    rules: {
+      // Relax some rules for tests
+      '@typescript-eslint/no-unused-vars': 'off',
+      'no-console': 'off',
     },
   },
 ]

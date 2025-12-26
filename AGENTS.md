@@ -12,7 +12,7 @@ Ledger is a macOS desktop app for viewing git branches, worktrees, and pull requ
 |--------|---------|
 | Type | Electron desktop app |
 | Platform | macOS (Apple Silicon) |
-| Language | TypeScript |
+| Language | TypeScript (strict mode) |
 | UI | React 19 + custom CSS |
 | Git | `simple-git` library |
 | PRs | GitHub CLI (`gh`) |
@@ -23,9 +23,9 @@ Ledger is a macOS desktop app for viewing git branches, worktrees, and pull requ
 
 ```
 lib/main/main.ts         # IPC handlers, app lifecycle
-lib/main/git-service.ts  # All git operations
+lib/main/git-service.ts  # All git operations (~2600 lines)
 lib/preload/preload.ts   # API exposed to renderer
-app/app.tsx              # Main React component (all UI)
+app/app.tsx              # Main React component (~4000 lines)
 app/styles/app.css       # All styling
 app/types/electron.d.ts  # TypeScript types for IPC
 ```
@@ -49,6 +49,7 @@ All UI is in `app/app.tsx`. Styling in `app/styles/app.css` uses CSS variables f
 ```bash
 npm run dev      # Development with hot reload
 npm test         # Run E2E tests
+npm run lint     # Check for linting issues
 npm run build:mac:arm64  # Build for Apple Silicon
 ```
 
@@ -84,7 +85,7 @@ Uses React hooks only (no Redux/Zustand):
 - Custom CSS (not Tailwind, despite it being installed)
 - CSS variables for colors (`--accent`, `--bg-primary`, etc.)
 - Mac native light theme aesthetic
-- Responsive four-column grid layout
+- Responsive multi-column layout
 
 ## Testing
 
@@ -99,13 +100,18 @@ Run with `npm test` (builds first) or `npm run test:headed`.
 | Operation | Function | Notes |
 |-----------|----------|-------|
 | List branches | `getBranchesWithMetadata()` | Includes commit counts, dates |
-| List worktrees | `getWorktrees()` | Porcelain format |
+| List worktrees | `getEnhancedWorktrees()` | With agent detection |
 | List PRs | `getPullRequests()` | Via `gh pr list` |
 | Switch branch | `checkoutBranch()` | Auto-stashes first |
 | Checkout remote | `checkoutRemoteBranch()` | Creates tracking branch |
 | Checkout PR | `checkoutPRBranch()` | Fetches and checkouts |
 | Open in browser | `openBranchInGitHub()` | GitHub URL |
 | Fetch | `pullBranch()` | git fetch remote branch |
+| Stage/Unstage | `stageFile()`, `unstageFile()` | Individual files |
+| Commit | `commitChanges()` | With message and description |
+| View diff | `getCommitDiff()`, `getFileDiff()` | Full diff parsing |
+| Stash ops | `applyStash()`, `popStash()`, etc. | Full stash management |
+| PR details | `getPRDetail()` | Full PR info with comments |
 
 ## Error Handling
 
@@ -113,6 +119,7 @@ Run with `npm test` (builds first) or `npm run test:headed`.
 - PR errors shown in PR column
 - Operation results shown as dismissible toasts
 - All IPC returns `{ success, message }` or `{ error }` pattern
+- Unused catch variables prefixed with `_` (e.g., `_error`)
 
 ## Settings Storage
 
@@ -132,16 +139,23 @@ JSON file at `~/Library/Application Support/ledger/ledger-settings.json`:
 ## Code Style
 
 - Prettier for formatting
-- ESLint for linting
+- ESLint for linting (see `eslint.config.mjs`)
 - TypeScript strict mode
 - Functional React components
 - No class components
+- Unused variables prefixed with `_`
 
 ## Areas for Improvement
 
-1. The `app.tsx` file is large (~740 lines) - could be split into components
-2. No loading skeletons - just "Loading..." text
-3. No keyboard shortcuts yet
-4. PR integration requires `gh` CLI - could add fallback
-5. Only macOS supported currently
+1. The `app.tsx` file is large (~4000 lines) - could be split into components
+2. The `git-service.ts` file is large (~2600 lines) - could be modularized
+3. No loading skeletons - just "Loading..." text
+4. No keyboard shortcuts yet
+5. PR integration requires `gh` CLI - could add fallback
+6. Only macOS supported currently
+7. React hooks exhaustive-deps warnings (intentional to prevent infinite loops)
 
+## IPC Naming Convention
+
+- Channels use kebab-case: `get-branches`, `checkout-branch`
+- Functions use camelCase: `getBranches()`, `checkoutBranch()`

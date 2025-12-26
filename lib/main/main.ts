@@ -208,7 +208,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-commit-history', async (_, limit?: number) => {
     try {
       return await getCommitHistory(limit);
-    } catch (error) {
+    } catch (_error) {
       return [];
     }
   });
@@ -216,7 +216,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-working-status', async () => {
     try {
       return await getWorkingStatus();
-    } catch (error) {
+    } catch (_error) {
       return { hasChanges: false, files: [], stagedCount: 0, unstagedCount: 0 };
     }
   });
@@ -233,7 +233,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-commit-graph-history', async (_, limit?: number) => {
     try {
       return await getCommitGraphHistory(limit);
-    } catch (error) {
+    } catch (_error) {
       return [];
     }
   });
@@ -241,7 +241,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-commit-diff', async (_, commitHash: string) => {
     try {
       return await getCommitDiff(commitHash);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   });
@@ -249,7 +249,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-branch-diff', async (_, branchName: string) => {
     try {
       return await getBranchDiff(branchName);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   });
@@ -257,7 +257,7 @@ app.whenReady().then(() => {
   ipcMain.handle('convert-worktree-to-branch', async (_, worktreePath: string) => {
     try {
       return await convertWorktreeToBranch(worktreePath);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   });
@@ -281,7 +281,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-stashes', async () => {
     try {
       return await getStashes();
-    } catch (error) {
+    } catch (_error) {
       return [];
     }
   });
@@ -289,7 +289,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-stash-files', async (_, stashIndex: number) => {
     try {
       return await getStashFiles(stashIndex);
-    } catch (error) {
+    } catch (_error) {
       return [];
     }
   });
@@ -297,7 +297,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-stash-file-diff', async (_, stashIndex: number, filePath: string) => {
     try {
       return await getStashFileDiff(stashIndex, filePath);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   });
@@ -305,7 +305,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-stash-diff', async (_, stashIndex: number) => {
     try {
       return await getStashDiff(stashIndex);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   });
@@ -386,7 +386,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-file-diff', async (_, filePath: string, staged: boolean) => {
     try {
       return await getFileDiff(filePath, staged);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   });
@@ -411,7 +411,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-pr-detail', async (_, prNumber: number) => {
     try {
       return await getPRDetail(prNumber);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   });
@@ -419,7 +419,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-pr-review-comments', async (_, prNumber: number) => {
     try {
       return await getPRReviewComments(prNumber);
-    } catch (error) {
+    } catch (_error) {
       return [];
     }
   });
@@ -427,7 +427,7 @@ app.whenReady().then(() => {
   ipcMain.handle('get-pr-file-diff', async (_, prNumber: number, filePath: string) => {
     try {
       return await getPRFileDiff(prNumber, filePath);
-    } catch (error) {
+    } catch (_error) {
       return null;
     }
   });

@@ -1,9 +1,11 @@
 # Ledger
 
-A modern git interface for macOS - view branches, worktrees, and pull requests at a glance.
+A modern git interface for macOS — view branches, worktrees, and pull requests at a glance.
 
 [![Download](https://img.shields.io/badge/Download-v0.1.0-blue?style=for-the-badge)](https://github.com/peterjthomson/ledger/releases/download/v0.1.0/Ledger-0.1.0-arm64.dmg)
 [![GitHub Release](https://img.shields.io/github/v/release/peterjthomson/ledger?style=flat-square)](https://github.com/peterjthomson/ledger/releases)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
+[![Platform](https://img.shields.io/badge/platform-macOS-lightgrey?style=flat-square)](https://github.com/peterjthomson/ledger)
 
 ## Download
 
@@ -17,54 +19,103 @@ A modern git interface for macOS - view branches, worktrees, and pull requests a
 
 ## Features
 
-- **Branch Viewer** - See all local and remote branches with metadata (commit dates, counts)
-- **Worktree Support** - View and navigate to git worktrees
-- **Pull Request Integration** - View open PRs from GitHub (via `gh` CLI)
-- **Smart Filtering** - Filter branches by: All, Local Only, Unmerged
-- **Flexible Sorting** - Sort by: Name, Last Commit, First Commit, Most Commits
-- **Quick Actions** - Double-click to switch branches, open worktrees, or view PRs
-- **Context Menus** - Right-click for additional options
-- **Auto-Stash** - Automatically stashes uncommitted changes before switching branches
+### 🌿 Branch Management
+- View all local and remote branches with metadata (commit dates, counts)
+- Filter: All, Local Only, Unmerged
+- Sort: Name, Last Commit, First Commit, Most Commits
+- Double-click to switch branches with auto-stash
+
+### 🔀 Pull Request Integration
+- View open PRs from GitHub (via `gh` CLI)
+- Filter by status: Open, Drafts, All
+- See PR details, reviews, and inline diffs
+- Create PRs directly from branches
+
+### 🌳 Worktree Support
+- View and navigate to git worktrees
+- Detect AI agent workspaces (Cursor, Claude, etc.)
+- See change stats per worktree
+- Convert worktree changes to branches
+
+### 📝 Commit & Staging
+- View commit history with graph visualization
+- Stage/unstage files with diff preview
+- Commit with message and description
+- Reset to previous commits
+
+### 📦 Stash Management
+- View, apply, and pop stashes
+- Preview stash contents
+- Convert stash to branch
 
 ## Requirements
 
 - macOS (Apple Silicon)
-- [GitHub CLI](https://cli.github.com/) (`gh`) - optional, for PR integration
+- [GitHub CLI](https://cli.github.com/) (`gh`) — optional, for PR integration
 
 ## Development
 
-### Installation
+### Setup
 
 ```bash
 # Clone the repository
-git clone https://github.com/peterjthomson/ledger
+git clone https://github.com/peterjthomson/ledger.git
 cd ledger
 
 # Install dependencies
 npm install
-```
 
-## Development
-
-```bash
+# Start development server
 npm run dev
 ```
 
-## Building
+### Available Scripts
 
-```bash
-# For macOS
-npm run build:mac
+| Command | Description |
+|---------|-------------|
+| `npm run dev` | Start development with hot reload |
+| `npm run lint` | Run ESLint |
+| `npm run format` | Format code with Prettier |
+| `npm test` | Run E2E tests |
+| `npm run build:mac:arm64` | Build for Apple Silicon |
+
+### Project Structure
+
 ```
+ledger/
+├── app/                    # Renderer process (React UI)
+│   ├── app.tsx            # Main React component
+│   ├── styles/            # CSS styles
+│   └── types/             # TypeScript declarations
+├── lib/                    # Main process (Electron)
+│   ├── main/              # Main process code
+│   └── preload/           # Preload scripts
+├── tests/                  # E2E tests (Playwright)
+└── docs/                   # Documentation
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development guidelines.
 
 ## Tech Stack
 
-- **[Electron](https://www.electronjs.org)** - Cross-platform desktop application framework
-- **[React](https://react.dev)** - UI library
-- **[TypeScript](https://www.typescriptlang.org)** - Type-safe JavaScript
-- **[simple-git](https://github.com/steveukx/git-js)** - Git operations
-- **[GitHub CLI](https://cli.github.com/)** - Pull request data
+- **[Electron](https://www.electronjs.org)** — Cross-platform desktop framework
+- **[React 19](https://react.dev)** — UI library
+- **[TypeScript](https://www.typescriptlang.org)** — Type-safe JavaScript
+- **[simple-git](https://github.com/steveukx/git-js)** — Git operations
+- **[GitHub CLI](https://cli.github.com/)** — Pull request data
+- **[Playwright](https://playwright.dev)** — E2E testing
+
+## Documentation
+
+- [Architecture Overview](docs/architecture.md)
+- [Roadmap](docs/roadmap.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+Built with the [electron-react-app](https://github.com/nicepkg/electron-react-app) template.

@@ -473,7 +473,7 @@ export async function createBranch(branchName: string, checkout: boolean = true)
     }
     
     // Check for invalid characters
-    if (/[\s~^:?*\[\]\\]/.test(trimmedName) || trimmedName.startsWith('-') || trimmedName.endsWith('.') || trimmedName.includes('..')) {
+    if (/[\s~^:?*[\]\\]/.test(trimmedName) || trimmedName.startsWith('-') || trimmedName.endsWith('.') || trimmedName.includes('..')) {
       return { success: false, message: 'Invalid branch name. Avoid spaces and special characters.' };
     }
     
@@ -1582,7 +1582,7 @@ export async function applyWorktreeChanges(worktreePath: string): Promise<{ succ
         await fs.promises.writeFile(tempPatchFile, patchOutput);
         await execAsync(`git apply --3way "${tempPatchFile}"`, { cwd: repoPath });
         await fs.promises.unlink(tempPatchFile);
-      } catch (applyError) {
+      } catch (_applyError) {
         // If apply fails, try with less strict options
         try {
           await execAsync(`git apply --reject --whitespace=fix "${tempPatchFile}"`, { cwd: repoPath });

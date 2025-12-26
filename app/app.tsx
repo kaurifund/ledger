@@ -296,7 +296,7 @@ export default function App() {
     try {
       const diff = await window.electronAPI.getCommitDiff(commit.hash)
       setCommitDiff(diff)
-    } catch (err) {
+    } catch (_err) {
       setCommitDiff(null)
     } finally {
       setLoadingDiff(false)
@@ -2734,7 +2734,7 @@ interface SidebarDetailPanelProps {
   onCheckoutWorktree?: (worktree: Worktree) => void;
 }
 
-function SidebarDetailPanel({ focus, formatRelativeTime, formatDate, currentBranch, switching, onStatusChange, onRefresh, onClearFocus, onCheckoutBranch, onCheckoutRemoteBranch, onCheckoutWorktree }: SidebarDetailPanelProps) {
+function SidebarDetailPanel({ focus, formatRelativeTime, formatDate, currentBranch, switching, onStatusChange, onRefresh, onClearFocus, onCheckoutBranch: _onCheckoutBranch, onCheckoutRemoteBranch, onCheckoutWorktree }: SidebarDetailPanelProps) {
   switch (focus.type) {
     case 'pr': {
       // Handled by PRReviewPanel
@@ -2878,7 +2878,7 @@ function StagingPanel({ workingStatus, onRefresh, onStatusChange }: StagingPanel
       try {
         const diff = await window.electronAPI.getFileDiff(selectedFile.path, selectedFile.staged);
         setFileDiff(diff);
-      } catch (error) {
+      } catch (_error) {
         setFileDiff(null);
       } finally {
         setLoadingDiff(false);
@@ -3241,7 +3241,7 @@ function PRReviewPanel({ pr, formatRelativeTime }: PRReviewPanelProps) {
       try {
         const diff = await window.electronAPI.getPRFileDiff(pr.number, selectedFile);
         setFileDiff(diff);
-      } catch (error) {
+      } catch (_error) {
         setFileDiff(null);
       } finally {
         setLoadingDiff(false);
@@ -3882,7 +3882,7 @@ function StashDetailPanel({ stash, formatRelativeTime, onStatusChange, onRefresh
       try {
         const diff = await window.electronAPI.getStashFileDiff(stash.index, selectedFile);
         setFileDiff(diff);
-      } catch (error) {
+      } catch (_error) {
         setFileDiff(null);
       } finally {
         setLoadingDiff(false);
