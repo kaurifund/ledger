@@ -2220,6 +2220,71 @@ function parseDiff(diffOutput: string, filePath: string): FileDiff {
   };
 }
 
+// Pull current branch from origin (with rebase to avoid merge commits)
+export async function pullCurrentBranch(): Promise<{ success: boolean; message: string; hadConflicts?: boolean }> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    const currentBranch = (await git.branchLocal()).current;
+    if (!currentBranch) {
+      return { success: false, message: 'Not on a branch (detached HEAD state)' };
+    }
+
+    // Fetch first to get the latest refs
+    await git.fetch('origin', currentBranch);
+
+    // Check if there are remote changes to pull
+    try {
+      const status = await git.status();
+      if (status.behind === 0) {
+        return { success: true, message: 'Already up to date' };
+      }
+    } catch {
+      // If status fails (e.g., no tracking branch), continue with pull attempt
+    }
+
+    // Pull with rebase to avoid merge commits
+    await git.pull('origin', currentBranch, ['--rebase']);
+
+    return { success: true, message: `Pulled latest changes from ${currentBranch}` };
+  } catch (error) {
+    const errorMessage = (error as Error).message;
+
+    // Check for merge/rebase conflicts
+    if (errorMessage.includes('conflict') || errorMessage.includes('CONFLICT') ||
+        errorMessage.includes('Merge conflict') || errorMessage.includes('could not apply')) {
+      // Abort the rebase to get back to a clean state
+      try {
+        await git.rebase(['--abort']);
+      } catch {
+        // Ignore abort errors
+      }
+      return { 
+        success: false, 
+        message: 'Pull failed due to conflicts. Please pull manually and resolve conflicts before committing.',
+        hadConflicts: true
+      };
+    }
+
+    // Check for uncommitted changes that would be overwritten
+    if (errorMessage.includes('overwritten') || errorMessage.includes('uncommitted')) {
+      return { 
+        success: false, 
+        message: 'Cannot pull with uncommitted changes that would be overwritten. Please stash or commit your changes first.',
+        hadConflicts: false
+      };
+    }
+
+    // No tracking branch
+    if (errorMessage.includes('no tracking') || errorMessage.includes("doesn't track")) {
+      // This is fine - new branch with no remote yet
+      return { success: true, message: 'No remote tracking branch (will be created on push)' };
+    }
+
+    return { success: false, message: errorMessage };
+  }
+}
+
 // Commit staged changes
 export async function commitChanges(
   message: string, 

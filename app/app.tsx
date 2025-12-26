@@ -2417,6 +2417,24 @@ function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatusChange 
 
     setIsCommitting(true);
     try {
+      // If push after commit is enabled, pull first to avoid push rejection
+      if (pushAfterCommit && currentBranch) {
+        onStatusChange({ type: 'info', message: 'Pulling latest changes...' });
+        const pullResult = await window.electronAPI.pullCurrentBranch();
+        
+        if (!pullResult.success) {
+          // Pull failed - alert user to fix and restart
+          if (pullResult.hadConflicts) {
+            onStatusChange({ type: 'error', message: 'Pull failed with conflicts. Please resolve conflicts in terminal and try again.' });
+          } else {
+            onStatusChange({ type: 'error', message: `Pull failed: ${pullResult.message}. Please resolve manually and try again.` });
+          }
+          await onRefresh(); // Refresh to show any state changes
+          setIsCommitting(false);
+          return;
+        }
+      }
+
       const commitResult = await window.electronAPI.commitChanges(
         commitMessage.trim(),
         commitDescription.trim() || undefined
