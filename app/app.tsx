@@ -1464,6 +1464,7 @@ export default function App() {
             {sidebarFocus?.type === 'uncommitted' && workingStatus ? (
               <StagingPanel 
                 workingStatus={workingStatus}
+                currentBranch={currentBranch}
                 onRefresh={refresh}
                 onStatusChange={setStatus}
               />
@@ -2095,17 +2096,19 @@ function SidebarDetailPanel({ focus, formatRelativeTime, formatDate, currentBran
 
 interface StagingPanelProps {
   workingStatus: WorkingStatus;
+  currentBranch: string;
   onRefresh: () => Promise<void>;
   onStatusChange: (status: StatusMessage | null) => void;
 }
 
-function StagingPanel({ workingStatus, onRefresh, onStatusChange }: StagingPanelProps) {
+function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatusChange }: StagingPanelProps) {
   const [selectedFile, setSelectedFile] = useState<UncommittedFile | null>(null);
   const [fileDiff, setFileDiff] = useState<StagingFileDiff | null>(null);
   const [loadingDiff, setLoadingDiff] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
   const [commitDescription, setCommitDescription] = useState('');
   const [isCommitting, setIsCommitting] = useState(false);
+  const [pushAfterCommit, setPushAfterCommit] = useState(true);
 
   const stagedFiles = workingStatus.files.filter(f => f.staged);
   const unstagedFiles = workingStatus.files.filter(f => !f.staged);
@@ -2176,23 +2179,36 @@ function StagingPanel({ workingStatus, onRefresh, onStatusChange }: StagingPanel
     }
   };
 
-  // Commit changes
+  // Commit changes (and optionally push)
   const handleCommit = async () => {
     if (!commitMessage.trim() || stagedFiles.length === 0) return;
 
     setIsCommitting(true);
     try {
-      const result = await window.electronAPI.commitChanges(
+      const commitResult = await window.electronAPI.commitChanges(
         commitMessage.trim(),
         commitDescription.trim() || undefined
       );
-      if (result.success) {
-        onStatusChange({ type: 'success', message: result.message });
+      
+      if (commitResult.success) {
+        // If push after commit is enabled, push the branch
+        if (pushAfterCommit && currentBranch) {
+          onStatusChange({ type: 'info', message: 'Pushing to remote...' });
+          const pushResult = await window.electronAPI.pushBranch(currentBranch, true);
+          if (pushResult.success) {
+            onStatusChange({ type: 'success', message: `Committed and pushed to ${currentBranch}` });
+          } else {
+            // Commit succeeded but push failed
+            onStatusChange({ type: 'error', message: `Committed, but push failed: ${pushResult.message}` });
+          }
+        } else {
+          onStatusChange({ type: 'success', message: commitResult.message });
+        }
         setCommitMessage('');
         setCommitDescription('');
         await onRefresh();
       } else {
-        onStatusChange({ type: 'error', message: result.message });
+        onStatusChange({ type: 'error', message: commitResult.message });
       }
     } catch (error) {
       onStatusChange({ type: 'error', message: (error as Error).message });
@@ -2235,6 +2251,12 @@ function StagingPanel({ workingStatus, onRefresh, onStatusChange }: StagingPanel
             <span className="diff-deletions">-{workingStatus.deletions}</span>
           </span>
         </div>
+        {currentBranch && (
+          <div className="staging-branch-indicator">
+            <span className="staging-branch-label">Committing to</span>
+            <code className="staging-branch-name">{currentBranch}</code>
+          </div>
+        )}
       </div>
 
       {/* File Lists */}
@@ -2381,12 +2403,28 @@ function StagingPanel({ workingStatus, onRefresh, onStatusChange }: StagingPanel
           onChange={(e) => setCommitDescription(e.target.value)}
           rows={3}
         />
+        <div className="commit-options">
+          <label className="commit-option-checkbox">
+            <input
+              type="checkbox"
+              checked={pushAfterCommit}
+              onChange={(e) => setPushAfterCommit(e.target.checked)}
+            />
+            <span>Push to <code>{currentBranch || 'remote'}</code> after commit</span>
+          </label>
+        </div>
         <button
           className="btn btn-primary commit-btn"
           onClick={handleCommit}
           disabled={!commitMessage.trim() || stagedFiles.length === 0 || isCommitting}
         >
-          {isCommitting ? 'Committing...' : `Commit ${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''}`}
+          {isCommitting 
+            ? (pushAfterCommit ? 'Committing & Pushing...' : 'Committing...') 
+            : (pushAfterCommit 
+                ? `Commit & Push ${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''}` 
+                : `Commit ${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''}`
+              )
+          }
         </button>
       </div>
     </div>
