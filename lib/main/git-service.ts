@@ -1833,22 +1833,21 @@ export async function getStashFiles(stashIndex: number): Promise<StashFile[]> {
   if (!git) throw new Error('No repository selected');
 
   try {
-    // Get list of files with stats
-    const output = await git.raw(['stash', 'show', `stash@{${stashIndex}}`, '--numstat', '--name-status']);
+    // Run numstat and name-status separately (combining them only returns name-status)
+    const [numstatOutput, nameStatusOutput] = await Promise.all([
+      git.raw(['stash', 'show', `stash@{${stashIndex}}`, '--numstat']),
+      git.raw(['stash', 'show', `stash@{${stashIndex}}`, '--name-status']),
+    ]);
     
-    if (!output.trim()) {
+    if (!numstatOutput.trim() && !nameStatusOutput.trim()) {
       return [];
     }
 
-    const lines = output.trim().split('\n');
     const files: StashFile[] = [];
     
     // Parse numstat output (additions deletions filename)
-    // and name-status output (status filename)
     const numstatLines: Map<string, { additions: number; deletions: number }> = new Map();
-    const statusLines: Map<string, string> = new Map();
-    
-    for (const line of lines) {
+    for (const line of numstatOutput.trim().split('\n')) {
       const numstatMatch = line.match(/^(\d+|-)\t(\d+|-)\t(.+)$/);
       if (numstatMatch) {
         const [, adds, dels, path] = numstatMatch;
@@ -1856,9 +1855,12 @@ export async function getStashFiles(stashIndex: number): Promise<StashFile[]> {
           additions: adds === '-' ? 0 : parseInt(adds),
           deletions: dels === '-' ? 0 : parseInt(dels),
         });
-        continue;
       }
-      
+    }
+    
+    // Parse name-status output (status filename)
+    const statusLines: Map<string, string> = new Map();
+    for (const line of nameStatusOutput.trim().split('\n')) {
       const statusMatch = line.match(/^([AMDRC])\t(.+)$/);
       if (statusMatch) {
         const [, status, path] = statusMatch;
