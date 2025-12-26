@@ -157,48 +157,46 @@ test.describe('Ledger App - Main View', () => {
     await expect(currentBranch).toBeVisible()
   })
 
-  test('displays Work Mode toggle button', async () => {
+  test('displays Focus Mode toggle button', async () => {
     test.skip(!repoLoaded, 'Repo did not auto-load')
-    const toggleButton = page.locator('button.view-mode-toggle')
+    const toggleButton = page.locator('button.view-toggle-btn[title="Focus Mode"]')
     await expect(toggleButton).toBeVisible()
-    await expect(toggleButton).toContainText('Work Mode')
+    await expect(toggleButton).toContainText('Focus')
   })
 
-  test('can switch to Work Mode', async () => {
+  test('can switch to Focus Mode', async () => {
     test.skip(!repoLoaded, 'Repo did not auto-load')
     
-    // Click the toggle button to switch to Work Mode
-    const toggleButton = page.locator('button.view-mode-toggle')
+    // Click the toggle button to switch to Focus Mode
+    const toggleButton = page.locator('button.view-toggle-btn[title="Focus Mode"]')
     await toggleButton.click()
     
-    // Verify Work Mode layout is visible
-    await expect(page.locator('.ledger-content.work-mode')).toBeVisible()
+    // Verify Focus Mode layout is visible
+    await expect(page.locator('.focus-mode-layout')).toBeVisible()
     
     // Verify sidebar is present
-    await expect(page.locator('.work-sidebar')).toBeVisible()
+    await expect(page.locator('.focus-sidebar')).toBeVisible()
     
     // Verify main panel is present
-    await expect(page.locator('.work-panel')).toBeVisible()
+    await expect(page.locator('.focus-main')).toBeVisible()
     
-    // Verify sidebar nav items are present
-    const navItems = page.locator('.work-nav-item')
-    await expect(navItems).toHaveCount(5)
-    
-    // Toggle button should now say "Column Mode"
-    await expect(toggleButton).toContainText('Column Mode')
+    // Verify sidebar sections are present
+    const sidebarSections = page.locator('.sidebar-section')
+    await expect(sidebarSections).toHaveCount(5)
   })
 
-  test('can switch back to Column Mode', async () => {
+  test('can switch back to Radar Mode', async () => {
     test.skip(!repoLoaded, 'Repo did not auto-load')
     
-    // Click the toggle button to switch back to Column Mode
-    const toggleButton = page.locator('button.view-mode-toggle')
-    await toggleButton.click()
+    // First switch to Focus Mode
+    await page.locator('button.view-toggle-btn[title="Focus Mode"]').click()
+    await expect(page.locator('.focus-mode-layout')).toBeVisible()
+    
+    // Click the toggle button to switch back to Radar Mode
+    const radarButton = page.locator('button.view-toggle-btn[title="Radar Mode"]')
+    await radarButton.click()
     
     // Verify five-column layout is visible again
     await expect(page.locator('.ledger-content.five-columns')).toBeVisible()
-    
-    // Toggle button should now say "Work Mode"
-    await expect(toggleButton).toContainText('Work Mode')
   })
 })

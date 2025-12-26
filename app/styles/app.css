@@ -1110,10 +1110,10 @@ body,
 }
 
 /* ========================================
-   Work Mode Layout
+   Focus Mode Layout
    ======================================== */
 
-.work-mode-layout {
+.focus-mode-layout {
   flex: 1;
   display: flex;
   overflow: hidden;
@@ -1121,7 +1121,7 @@ body,
 }
 
 /* Sidebar */
-.work-sidebar {
+.focus-sidebar {
   width: 220px;
   min-width: 220px;
   background: var(--bg-secondary);
@@ -2028,7 +2028,7 @@ body,
 }
 
 /* Main Area */
-.work-main {
+.focus-main {
   flex: 1;
   display: flex;
   flex-direction: column;
@@ -2036,7 +2036,7 @@ body,
   min-width: 0;
 }
 
-.work-main-header {
+.focus-main-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -2045,7 +2045,7 @@ body,
   border-bottom: 1px solid var(--border-subtle);
 }
 
-.work-main-header h2 {
+.focus-main-header h2 {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -2161,7 +2161,7 @@ body,
 }
 
 /* Detail Panel */
-.work-detail {
+.focus-detail {
   width: 40%;
   min-width: 300px;
   max-width: 500px;
@@ -3510,8 +3510,8 @@ body,
   z-index: 10;
 }
 
-.work-sidebar:hover .panel-collapse-btn,
-.work-detail:hover .panel-collapse-btn {
+.focus-sidebar:hover .panel-collapse-btn,
+.focus-detail:hover .panel-collapse-btn {
   opacity: 1;
 }
 
@@ -3529,7 +3529,7 @@ body,
 }
 
 /* Position collapse buttons */
-.work-sidebar .panel-collapse-btn {
+.focus-sidebar .panel-collapse-btn {
   right: 8px;
 }
 
@@ -3538,8 +3538,8 @@ body,
 }
 
 /* Make sidebar and detail positioned for collapse buttons */
-.work-sidebar,
-.work-detail {
+.focus-sidebar,
+.focus-detail {
   position: relative;
 }
 

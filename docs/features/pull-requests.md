@@ -133,11 +133,11 @@ gh pr list --state open --json number,title,author,headRefName,baseRefName,url,c
 
 ## UI Locations
 
-### Column Mode
+### Radar Mode
 - **Pull Requests** column (1st column)
 - Full PR list with all metadata
 
-### Work Mode
+### Focus Mode
 - **Pull Requests** section in sidebar (collapsible)
 - Single-click → Shows PR info in detail panel
 - Double-click → Opens PR in browser
@@ -165,7 +165,7 @@ gh pr list --state open --json number,title,author,headRefName,baseRefName,url,c
 └─────────────────────────────────────────────────────┘
 ```
 
-## Work Mode Detail Panel
+## Focus Mode Detail Panel
 
 When a PR is selected:
 

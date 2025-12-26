@@ -313,7 +313,7 @@ export interface ElectronAPI {
   getWorkingStatus: () => Promise<WorkingStatus>;
   // Reset operations
   resetToCommit: (commitHash: string, mode: 'soft' | 'mixed' | 'hard') => Promise<CheckoutResult>;
-  // Work mode APIs
+  // Focus mode APIs
   getCommitGraphHistory: (limit?: number, skipStats?: boolean) => Promise<GraphCommit[]>;
   getCommitDiff: (commitHash: string) => Promise<CommitDiff | null>;
   getBranchDiff: (branchName: string) => Promise<BranchDiff | null>;

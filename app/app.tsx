@@ -56,7 +56,7 @@ export default function App() {
   // View mode state
   const [viewMode, setViewMode] = useState<ViewMode>('radar')
   
-  // Work mode state
+  // Focus mode state
   const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([])
   const [selectedCommit, setSelectedCommit] = useState<GraphCommit | null>(null)
   const [commitDiff, setCommitDiff] = useState<CommitDiff | null>(null)
@@ -1662,7 +1662,7 @@ export default function App() {
 
       {/* Focus Mode Layout */}
       {repoPath && !error && viewMode === 'focus' && (
-        <main className="work-mode-layout">
+        <main className="focus-mode-layout">
           {/* Panel Toggle for Sidebar */}
           {!sidebarVisible && (
             <button 
@@ -1676,7 +1676,7 @@ export default function App() {
           
           {/* Sidebar */}
           {sidebarVisible && (
-          <aside className="work-sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
+          <aside className="focus-sidebar" style={{ width: sidebarWidth, minWidth: sidebarWidth }}>
             {/* PRs Section */}
             <div className="sidebar-section">
               <div className="sidebar-section-header">
@@ -1744,7 +1744,6 @@ export default function App() {
                         title={`#${pr.number} ${pr.title}`}
                       >
                         <span className="sidebar-item-name">
-                          <span className="sidebar-pr-number">#{pr.number}</span>
                           {pr.title}
                         </span>
                         {pr.isDraft && <span className="sidebar-pr-draft">draft</span>}
@@ -2024,8 +2023,8 @@ export default function App() {
           )}
 
           {/* Main Content: Git Graph + Commit List */}
-          <div className="work-main">
-            <div className="work-main-header">
+          <div className="focus-main">
+            <div className="focus-main-header">
               <h2>
                 <span className="column-icon">◉</span>
                 History
@@ -2052,7 +2051,7 @@ export default function App() {
 
           {/* Detail Panel */}
           {detailVisible && (
-          <aside className="work-detail" style={{ width: detailWidth, minWidth: detailWidth }}>
+          <aside className="focus-detail" style={{ width: detailWidth, minWidth: detailWidth }}>
             {sidebarFocus?.type === 'uncommitted' && workingStatus ? (
               <StagingPanel 
                 workingStatus={workingStatus}
@@ -3417,7 +3416,7 @@ function PRReviewPanel({ pr, formatRelativeTime, onCheckout, switching }: PRRevi
       {/* Header */}
       <div className="pr-review-header">
         <div className="pr-review-title-row">
-          <h3 className="pr-review-title">#{pr.number} {prDetail.title}</h3>
+          <h3 className="pr-review-title">{prDetail.title}</h3>
           {prDetail.reviewDecision && getReviewStateBadge(prDetail.reviewDecision)}
         </div>
         <div className="pr-review-meta">

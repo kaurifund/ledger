@@ -1727,7 +1727,7 @@ export async function checkoutPRBranch(branchName: string): Promise<{ success: b
 }
 
 // ========================================
-// Work Mode APIs
+// Focus Mode APIs
 // ========================================
 
 // Commit with graph data (parent hashes for graph rendering)

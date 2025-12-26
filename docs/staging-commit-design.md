@@ -47,9 +47,9 @@ Git GUIs typically use a **3-panel layout** for staging and committing:
 
 ## Simplified Design for Ledger (Phase 1)
 
-### Layout: Modify Work Mode's Uncommitted Panel
+### Layout: Modify Focus Mode's Uncommitted Panel
 
-When "Uncommitted" is selected in Work Mode sidebar:
+When "Uncommitted" is selected in Focus Mode sidebar:
 
 ```
 ┌──────────────────────────────────────────────────────────┐
@@ -194,7 +194,7 @@ interface DiffLine {
    - StagingFileList (with stage/unstage buttons)
    - FileDiffPreview (simple unified diff)
    - CommitForm (message + button)
-6. **Integrate into Uncommitted panel** in Work Mode
+6. **Integrate into Uncommitted panel** in Focus Mode
 
 ---
 

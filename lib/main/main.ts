@@ -22,7 +22,7 @@ import {
   getCommitHistory,
   getWorkingStatus,
   resetToCommit,
-  // Work mode APIs
+  // Focus mode APIs
   getCommitGraphHistory,
   getCommitDiff,
   getBranchDiff,
@@ -239,7 +239,7 @@ app.whenReady().then(() => {
     }
   });
 
-  // Work mode APIs
+  // Focus mode APIs
   ipcMain.handle('get-commit-graph-history', async (_, limit?: number, skipStats?: boolean) => {
     try {
       return await getCommitGraphHistory(limit, skipStats);

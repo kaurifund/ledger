@@ -143,11 +143,11 @@ Filter worktrees by their parent directory to see only specific agent workspaces
 
 ## UI Locations
 
-### Column Mode
+### Radar Mode
 - **Worktrees** column (2nd column)
 - Shows all worktrees with diff stats
 
-### Work Mode
+### Focus Mode
 - **Worktrees** section in sidebar (collapsible)
 - Single-click → Shows worktree info in detail panel
 - Double-click → Checks out worktree branch
@@ -181,7 +181,7 @@ Filter worktrees by their parent directory to see only specific agent workspaces
 └────────────────────────────────────────────────────┘
 ```
 
-## Work Mode Detail Panel
+## Focus Mode Detail Panel
 
 When a worktree is selected:
 

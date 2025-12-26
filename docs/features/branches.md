@@ -124,11 +124,11 @@ interface Branch {
 
 ## UI Locations
 
-### Column Mode
+### Radar Mode
 - **Local Branches** column (4th column)
 - **Remote Branches** column (5th column)
 
-### Work Mode
+### Focus Mode
 - **Branches** section in sidebar (collapsible)
 - **Remotes** section in sidebar (collapsible)
 - Single-click → Shows branch info in detail panel
