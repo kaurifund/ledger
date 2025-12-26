@@ -8,6 +8,7 @@ import {
   getBranchesWithMetadata, 
   getEnhancedWorktrees,
   checkoutBranch,
+  createBranch,
   checkoutRemoteBranch,
   getPullRequests,
   openPullRequest,
@@ -31,6 +32,10 @@ import {
   discardFileChanges,
   getFileDiff,
   commitChanges,
+  // PR Review APIs
+  getPRDetail,
+  getPRReviewComments,
+  getPRFileDiff,
 } from './git-service'
 import { getLastRepoPath, saveLastRepoPath } from './settings-service'
 
@@ -109,6 +114,14 @@ app.whenReady().then(() => {
   ipcMain.handle('checkout-branch', async (_, branchName: string) => {
     try {
       return await checkoutBranch(branchName);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('create-branch', async (_, branchName: string, checkout: boolean = true) => {
+    try {
+      return await createBranch(branchName, checkout);
     } catch (error) {
       return { success: false, message: (error as Error).message };
     }
@@ -267,6 +280,31 @@ app.whenReady().then(() => {
       return await commitChanges(message, description);
     } catch (error) {
       return { success: false, message: (error as Error).message };
+    }
+  });
+
+  // PR Review handlers
+  ipcMain.handle('get-pr-detail', async (_, prNumber: number) => {
+    try {
+      return await getPRDetail(prNumber);
+    } catch (error) {
+      return null;
+    }
+  });
+
+  ipcMain.handle('get-pr-review-comments', async (_, prNumber: number) => {
+    try {
+      return await getPRReviewComments(prNumber);
+    } catch (error) {
+      return [];
+    }
+  });
+
+  ipcMain.handle('get-pr-file-diff', async (_, prNumber: number, filePath: string) => {
+    try {
+      return await getPRFileDiff(prNumber, filePath);
+    } catch (error) {
+      return null;
     }
   });
 

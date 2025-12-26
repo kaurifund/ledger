@@ -12,6 +12,7 @@ const electronAPI = {
   getWorktrees: () => ipcRenderer.invoke('get-worktrees'),
   // Checkout operations
   checkoutBranch: (branchName: string) => ipcRenderer.invoke('checkout-branch', branchName),
+  createBranch: (branchName: string, checkout?: boolean) => ipcRenderer.invoke('create-branch', branchName, checkout),
   checkoutRemoteBranch: (remoteBranch: string) => ipcRenderer.invoke('checkout-remote-branch', remoteBranch),
   openWorktree: (worktreePath: string) => ipcRenderer.invoke('open-worktree', worktreePath),
   // Pull requests
@@ -43,6 +44,10 @@ const electronAPI = {
   discardFileChanges: (filePath: string) => ipcRenderer.invoke('discard-file-changes', filePath),
   getFileDiff: (filePath: string, staged: boolean) => ipcRenderer.invoke('get-file-diff', filePath, staged),
   commitChanges: (message: string, description?: string) => ipcRenderer.invoke('commit-changes', message, description),
+  // PR Review operations
+  getPRDetail: (prNumber: number) => ipcRenderer.invoke('get-pr-detail', prNumber),
+  getPRReviewComments: (prNumber: number) => ipcRenderer.invoke('get-pr-review-comments', prNumber),
+  getPRFileDiff: (prNumber: number, filePath: string) => ipcRenderer.invoke('get-pr-file-diff', prNumber, filePath),
 }
 
 // Use `contextBridge` APIs to expose APIs to

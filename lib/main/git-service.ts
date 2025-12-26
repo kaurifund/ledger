@@ -424,6 +424,42 @@ export async function checkoutBranch(branchName: string): Promise<{ success: boo
   }
 }
 
+// Create a new branch
+export async function createBranch(branchName: string, checkout: boolean = true): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+  
+  try {
+    // Validate branch name
+    const trimmedName = branchName.trim();
+    if (!trimmedName) {
+      return { success: false, message: 'Branch name cannot be empty' };
+    }
+    
+    // Check for invalid characters
+    if (/[\s~^:?*\[\]\\]/.test(trimmedName) || trimmedName.startsWith('-') || trimmedName.endsWith('.') || trimmedName.includes('..')) {
+      return { success: false, message: 'Invalid branch name. Avoid spaces and special characters.' };
+    }
+    
+    // Check if branch already exists
+    const branches = await git.branchLocal();
+    if (branches.all.includes(trimmedName)) {
+      return { success: false, message: `Branch '${trimmedName}' already exists` };
+    }
+    
+    if (checkout) {
+      // Create and checkout in one step
+      await git.checkoutLocalBranch(trimmedName);
+      return { success: true, message: `Created and switched to branch '${trimmedName}'` };
+    } else {
+      // Just create the branch without switching
+      await git.branch([trimmedName]);
+      return { success: true, message: `Created branch '${trimmedName}'` };
+    }
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
 // Checkout a remote branch (creates local tracking branch)
 export async function checkoutRemoteBranch(remoteBranch: string): Promise<{ success: boolean; message: string; stashed?: string }> {
   if (!git) throw new Error('No repository selected');
@@ -549,6 +585,198 @@ export async function openPullRequest(url: string): Promise<{ success: boolean; 
     return { success: true, message: 'Opened PR in browser' };
   } catch (error) {
     return { success: false, message: (error as Error).message };
+  }
+}
+
+// ========================================
+// PR Review Types and Functions
+// ========================================
+
+export interface PRComment {
+  id: string;
+  author: { login: string };
+  authorAssociation: string;
+  body: string;
+  createdAt: string;
+  url: string;
+  isMinimized: boolean;
+}
+
+export interface PRReview {
+  id: string;
+  author: { login: string };
+  authorAssociation: string;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'PENDING' | 'DISMISSED';
+  body: string;
+  submittedAt: string;
+}
+
+export interface PRFile {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface PRCommit {
+  oid: string;
+  messageHeadline: string;
+  author: { name: string; email: string };
+  committedDate: string;
+}
+
+export interface PRReviewComment {
+  id: number;
+  author: { login: string };
+  authorAssociation: string;
+  body: string;
+  path: string;
+  line: number | null;
+  startLine: number | null;
+  side: 'LEFT' | 'RIGHT';
+  diffHunk: string;
+  createdAt: string;
+  inReplyToId: number | null;
+  url: string;
+}
+
+export interface PRDetail {
+  number: number;
+  title: string;
+  body: string;
+  author: { login: string };
+  state: 'OPEN' | 'CLOSED' | 'MERGED';
+  reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+  baseRefName: string;
+  headRefName: string;
+  additions: number;
+  deletions: number;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  comments: PRComment[];
+  reviews: PRReview[];
+  files: PRFile[];
+  commits: PRCommit[];
+  // Line-specific review comments (fetched separately)
+  reviewComments?: PRReviewComment[];
+}
+
+// Get detailed PR information including comments, reviews, files
+export async function getPRDetail(prNumber: number): Promise<PRDetail | null> {
+  if (!repoPath) return null;
+
+  try {
+    const { stdout } = await execAsync(
+      `gh pr view ${prNumber} --json number,title,body,author,state,reviewDecision,baseRefName,headRefName,additions,deletions,createdAt,updatedAt,url,comments,reviews,files,commits`,
+      { cwd: repoPath }
+    );
+
+    const data = JSON.parse(stdout);
+    
+    return {
+      number: data.number,
+      title: data.title,
+      body: data.body || '',
+      author: { login: data.author?.login || 'unknown' },
+      state: data.state,
+      reviewDecision: data.reviewDecision,
+      baseRefName: data.baseRefName,
+      headRefName: data.headRefName,
+      additions: data.additions || 0,
+      deletions: data.deletions || 0,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+      url: data.url,
+      comments: (data.comments || []).map((c: any) => ({
+        id: c.id,
+        author: { login: c.author?.login || 'unknown' },
+        authorAssociation: c.authorAssociation || 'NONE',
+        body: c.body || '',
+        createdAt: c.createdAt,
+        url: c.url,
+        isMinimized: c.isMinimized || false,
+      })),
+      reviews: (data.reviews || []).map((r: any) => ({
+        id: r.id,
+        author: { login: r.author?.login || 'unknown' },
+        authorAssociation: r.authorAssociation || 'NONE',
+        state: r.state,
+        body: r.body || '',
+        submittedAt: r.submittedAt,
+      })),
+      files: (data.files || []).map((f: any) => ({
+        path: f.path,
+        additions: f.additions || 0,
+        deletions: f.deletions || 0,
+      })),
+      commits: (data.commits || []).map((c: any) => ({
+        oid: c.oid,
+        messageHeadline: c.messageHeadline,
+        author: { name: c.authors?.[0]?.name || 'unknown', email: c.authors?.[0]?.email || '' },
+        committedDate: c.committedDate,
+      })),
+    };
+  } catch (error) {
+    console.error('Error fetching PR detail:', error);
+    return null;
+  }
+}
+
+// Get line-specific review comments for a PR
+export async function getPRReviewComments(prNumber: number): Promise<PRReviewComment[]> {
+  if (!repoPath) return [];
+
+  try {
+    // Get repo owner and name from GitHub URL
+    const ghUrl = await getGitHubUrl();
+    if (!ghUrl) return [];
+    
+    // Extract owner/repo from URL (e.g., "https://github.com/owner/repo")
+    const match = ghUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+    if (!match) return [];
+    
+    const [, owner, repo] = match;
+    
+    const { stdout } = await execAsync(
+      `gh api /repos/${owner}/${repo}/pulls/${prNumber}/comments`,
+      { cwd: repoPath }
+    );
+
+    const comments = JSON.parse(stdout);
+    
+    return comments.map((c: any) => ({
+      id: c.id,
+      author: { login: c.user?.login || 'unknown' },
+      authorAssociation: c.author_association || 'NONE',
+      body: c.body || '',
+      path: c.path,
+      line: c.line,
+      startLine: c.start_line,
+      side: c.side || 'RIGHT',
+      diffHunk: c.diff_hunk || '',
+      createdAt: c.created_at,
+      inReplyToId: c.in_reply_to_id,
+      url: c.html_url,
+    }));
+  } catch (error) {
+    console.error('Error fetching PR review comments:', error);
+    return [];
+  }
+}
+
+// Get the diff for a specific file in a PR
+export async function getPRFileDiff(prNumber: number, filePath: string): Promise<string | null> {
+  if (!repoPath) return null;
+
+  try {
+    const { stdout } = await execAsync(
+      `gh pr diff ${prNumber} -- "${filePath}"`,
+      { cwd: repoPath }
+    );
+    return stdout;
+  } catch (error) {
+    console.error('Error fetching PR file diff:', error);
+    return null;
   }
 }
 

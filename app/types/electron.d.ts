@@ -174,6 +174,78 @@ export interface StagingFileDiff {
   deletions: number;
 }
 
+// ========================================
+// PR Review Types
+// ========================================
+
+export interface PRComment {
+  id: string;
+  author: { login: string };
+  authorAssociation: string;
+  body: string;
+  createdAt: string;
+  url: string;
+  isMinimized: boolean;
+}
+
+export interface PRReview {
+  id: string;
+  author: { login: string };
+  authorAssociation: string;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'PENDING' | 'DISMISSED';
+  body: string;
+  submittedAt: string;
+}
+
+export interface PRFile {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface PRCommit {
+  oid: string;
+  messageHeadline: string;
+  author: { name: string; email: string };
+  committedDate: string;
+}
+
+export interface PRReviewComment {
+  id: number;
+  author: { login: string };
+  authorAssociation: string;
+  body: string;
+  path: string;
+  line: number | null;
+  startLine: number | null;
+  side: 'LEFT' | 'RIGHT';
+  diffHunk: string;
+  createdAt: string;
+  inReplyToId: number | null;
+  url: string;
+}
+
+export interface PRDetail {
+  number: number;
+  title: string;
+  body: string;
+  author: { login: string };
+  state: 'OPEN' | 'CLOSED' | 'MERGED';
+  reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+  baseRefName: string;
+  headRefName: string;
+  additions: number;
+  deletions: number;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  comments: PRComment[];
+  reviews: PRReview[];
+  files: PRFile[];
+  commits: PRCommit[];
+  reviewComments?: PRReviewComment[];
+}
+
 export interface UncommittedFile {
   path: string;
   status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked';
@@ -199,6 +271,7 @@ export interface ElectronAPI {
   getWorktrees: () => Promise<Worktree[] | { error: string }>;
   // Checkout operations
   checkoutBranch: (branchName: string) => Promise<CheckoutResult>;
+  createBranch: (branchName: string, checkout?: boolean) => Promise<{ success: boolean; message: string }>;
   checkoutRemoteBranch: (remoteBranch: string) => Promise<CheckoutResult>;
   openWorktree: (worktreePath: string) => Promise<{ success: boolean; message: string }>;
   // Pull requests
@@ -228,6 +301,10 @@ export interface ElectronAPI {
   discardFileChanges: (filePath: string) => Promise<{ success: boolean; message: string }>;
   getFileDiff: (filePath: string, staged: boolean) => Promise<StagingFileDiff | null>;
   commitChanges: (message: string, description?: string) => Promise<{ success: boolean; message: string }>;
+  // PR Review operations
+  getPRDetail: (prNumber: number) => Promise<PRDetail | null>;
+  getPRReviewComments: (prNumber: number) => Promise<PRReviewComment[]>;
+  getPRFileDiff: (prNumber: number, filePath: string) => Promise<string | null>;
 }
 
 declare global {
