@@ -424,6 +424,76 @@ export async function checkoutBranch(branchName: string): Promise<{ success: boo
   }
 }
 
+// Push a branch to origin
+export async function pushBranch(branchName?: string, setUpstream: boolean = true): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+  
+  try {
+    // Get current branch if not specified
+    const branch = branchName || (await git.branchLocal()).current;
+    
+    if (setUpstream) {
+      // Use --set-upstream to establish tracking
+      await git.push(['--set-upstream', 'origin', branch]);
+    } else {
+      await git.push('origin', branch);
+    }
+    
+    return { success: true, message: `Pushed ${branch} to origin` };
+  } catch (error) {
+    const errorMessage = (error as Error).message;
+    
+    // Handle common errors
+    if (errorMessage.includes('no upstream')) {
+      return { success: false, message: 'No upstream branch set. Try pushing with set-upstream.' };
+    }
+    if (errorMessage.includes('rejected')) {
+      return { success: false, message: 'Push rejected. Pull changes first or force push.' };
+    }
+    if (errorMessage.includes('Permission denied') || errorMessage.includes('authentication')) {
+      return { success: false, message: 'Authentication failed. Check your Git credentials.' };
+    }
+    
+    return { success: false, message: errorMessage };
+  }
+}
+
+// Create a new branch
+export async function createBranch(branchName: string, checkout: boolean = true): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+  
+  try {
+    // Validate branch name
+    const trimmedName = branchName.trim();
+    if (!trimmedName) {
+      return { success: false, message: 'Branch name cannot be empty' };
+    }
+    
+    // Check for invalid characters
+    if (/[\s~^:?*\[\]\\]/.test(trimmedName) || trimmedName.startsWith('-') || trimmedName.endsWith('.') || trimmedName.includes('..')) {
+      return { success: false, message: 'Invalid branch name. Avoid spaces and special characters.' };
+    }
+    
+    // Check if branch already exists
+    const branches = await git.branchLocal();
+    if (branches.all.includes(trimmedName)) {
+      return { success: false, message: `Branch '${trimmedName}' already exists` };
+    }
+    
+    if (checkout) {
+      // Create and checkout in one step
+      await git.checkoutLocalBranch(trimmedName);
+      return { success: true, message: `Created and switched to branch '${trimmedName}'` };
+    } else {
+      // Just create the branch without switching
+      await git.branch([trimmedName]);
+      return { success: true, message: `Created branch '${trimmedName}'` };
+    }
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
 // Checkout a remote branch (creates local tracking branch)
 export async function checkoutRemoteBranch(remoteBranch: string): Promise<{ success: boolean; message: string; stashed?: string }> {
   if (!git) throw new Error('No repository selected');
@@ -549,6 +619,255 @@ export async function openPullRequest(url: string): Promise<{ success: boolean; 
     return { success: true, message: 'Opened PR in browser' };
   } catch (error) {
     return { success: false, message: (error as Error).message };
+  }
+}
+
+// Create a new pull request
+export async function createPullRequest(options: {
+  title: string;
+  body?: string;
+  baseBranch?: string;
+  draft?: boolean;
+  web?: boolean;
+}): Promise<{ success: boolean; message: string; url?: string }> {
+  if (!repoPath) {
+    return { success: false, message: 'No repository selected' };
+  }
+
+  try {
+    const args = ['pr', 'create'];
+    
+    args.push('--title', `"${options.title.replace(/"/g, '\\"')}"`);
+    
+    if (options.body) {
+      args.push('--body', `"${options.body.replace(/"/g, '\\"')}"`);
+    }
+    
+    if (options.baseBranch) {
+      args.push('--base', options.baseBranch);
+    }
+    
+    if (options.draft) {
+      args.push('--draft');
+    }
+    
+    if (options.web) {
+      // Open in browser for full editing
+      args.push('--web');
+      await execAsync(`gh ${args.join(' ')}`, { cwd: repoPath });
+      return { success: true, message: 'Opened PR creation in browser' };
+    }
+    
+    const { stdout } = await execAsync(`gh ${args.join(' ')}`, { cwd: repoPath });
+    const url = stdout.trim();
+    
+    return { 
+      success: true, 
+      message: 'Pull request created',
+      url 
+    };
+  } catch (error) {
+    const errorMessage = (error as Error).message;
+    // Check for common errors
+    if (errorMessage.includes('already exists')) {
+      return { success: false, message: 'A pull request already exists for this branch' };
+    }
+    if (errorMessage.includes('not logged')) {
+      return { success: false, message: 'Not logged into GitHub CLI. Run `gh auth login` in terminal.' };
+    }
+    return { success: false, message: errorMessage };
+  }
+}
+
+// ========================================
+// PR Review Types and Functions
+// ========================================
+
+export interface PRComment {
+  id: string;
+  author: { login: string };
+  authorAssociation: string;
+  body: string;
+  createdAt: string;
+  url: string;
+  isMinimized: boolean;
+}
+
+export interface PRReview {
+  id: string;
+  author: { login: string };
+  authorAssociation: string;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'PENDING' | 'DISMISSED';
+  body: string;
+  submittedAt: string;
+}
+
+export interface PRFile {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface PRCommit {
+  oid: string;
+  messageHeadline: string;
+  author: { name: string; email: string };
+  committedDate: string;
+}
+
+export interface PRReviewComment {
+  id: number;
+  author: { login: string };
+  authorAssociation: string;
+  body: string;
+  path: string;
+  line: number | null;
+  startLine: number | null;
+  side: 'LEFT' | 'RIGHT';
+  diffHunk: string;
+  createdAt: string;
+  inReplyToId: number | null;
+  url: string;
+}
+
+export interface PRDetail {
+  number: number;
+  title: string;
+  body: string;
+  author: { login: string };
+  state: 'OPEN' | 'CLOSED' | 'MERGED';
+  reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+  baseRefName: string;
+  headRefName: string;
+  additions: number;
+  deletions: number;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  comments: PRComment[];
+  reviews: PRReview[];
+  files: PRFile[];
+  commits: PRCommit[];
+  // Line-specific review comments (fetched separately)
+  reviewComments?: PRReviewComment[];
+}
+
+// Get detailed PR information including comments, reviews, files
+export async function getPRDetail(prNumber: number): Promise<PRDetail | null> {
+  if (!repoPath) return null;
+
+  try {
+    const { stdout } = await execAsync(
+      `gh pr view ${prNumber} --json number,title,body,author,state,reviewDecision,baseRefName,headRefName,additions,deletions,createdAt,updatedAt,url,comments,reviews,files,commits`,
+      { cwd: repoPath }
+    );
+
+    const data = JSON.parse(stdout);
+    
+    return {
+      number: data.number,
+      title: data.title,
+      body: data.body || '',
+      author: { login: data.author?.login || 'unknown' },
+      state: data.state,
+      reviewDecision: data.reviewDecision,
+      baseRefName: data.baseRefName,
+      headRefName: data.headRefName,
+      additions: data.additions || 0,
+      deletions: data.deletions || 0,
+      createdAt: data.createdAt,
+      updatedAt: data.updatedAt,
+      url: data.url,
+      comments: (data.comments || []).map((c: any) => ({
+        id: c.id,
+        author: { login: c.author?.login || 'unknown' },
+        authorAssociation: c.authorAssociation || 'NONE',
+        body: c.body || '',
+        createdAt: c.createdAt,
+        url: c.url,
+        isMinimized: c.isMinimized || false,
+      })),
+      reviews: (data.reviews || []).map((r: any) => ({
+        id: r.id,
+        author: { login: r.author?.login || 'unknown' },
+        authorAssociation: r.authorAssociation || 'NONE',
+        state: r.state,
+        body: r.body || '',
+        submittedAt: r.submittedAt,
+      })),
+      files: (data.files || []).map((f: any) => ({
+        path: f.path,
+        additions: f.additions || 0,
+        deletions: f.deletions || 0,
+      })),
+      commits: (data.commits || []).map((c: any) => ({
+        oid: c.oid,
+        messageHeadline: c.messageHeadline,
+        author: { name: c.authors?.[0]?.name || 'unknown', email: c.authors?.[0]?.email || '' },
+        committedDate: c.committedDate,
+      })),
+    };
+  } catch (error) {
+    console.error('Error fetching PR detail:', error);
+    return null;
+  }
+}
+
+// Get line-specific review comments for a PR
+export async function getPRReviewComments(prNumber: number): Promise<PRReviewComment[]> {
+  if (!repoPath) return [];
+
+  try {
+    // Get repo owner and name from GitHub URL
+    const ghUrl = await getGitHubUrl();
+    if (!ghUrl) return [];
+    
+    // Extract owner/repo from URL (e.g., "https://github.com/owner/repo")
+    const match = ghUrl.match(/github\.com\/([^/]+)\/([^/]+)/);
+    if (!match) return [];
+    
+    const [, owner, repo] = match;
+    
+    const { stdout } = await execAsync(
+      `gh api /repos/${owner}/${repo}/pulls/${prNumber}/comments`,
+      { cwd: repoPath }
+    );
+
+    const comments = JSON.parse(stdout);
+    
+    return comments.map((c: any) => ({
+      id: c.id,
+      author: { login: c.user?.login || 'unknown' },
+      authorAssociation: c.author_association || 'NONE',
+      body: c.body || '',
+      path: c.path,
+      line: c.line,
+      startLine: c.start_line,
+      side: c.side || 'RIGHT',
+      diffHunk: c.diff_hunk || '',
+      createdAt: c.created_at,
+      inReplyToId: c.in_reply_to_id,
+      url: c.html_url,
+    }));
+  } catch (error) {
+    console.error('Error fetching PR review comments:', error);
+    return [];
+  }
+}
+
+// Get the diff for a specific file in a PR
+export async function getPRFileDiff(prNumber: number, filePath: string): Promise<string | null> {
+  if (!repoPath) return null;
+
+  try {
+    const { stdout } = await execAsync(
+      `gh pr diff ${prNumber} -- "${filePath}"`,
+      { cwd: repoPath }
+    );
+    return stdout;
+  } catch (error) {
+    console.error('Error fetching PR file diff:', error);
+    return null;
   }
 }
 
@@ -695,42 +1014,54 @@ export async function getUncommittedFiles(): Promise<UncommittedFile[]> {
   try {
     const status = await git.status();
     const files: UncommittedFile[] = [];
+    const addedPaths = new Set<string>();
 
-    // Staged files
-    for (const file of status.staged) {
-      files.push({ path: file, status: 'added', staged: true });
-    }
-    
-    // Modified files
-    for (const file of status.modified) {
-      const isStaged = status.staged.includes(file);
-      files.push({ path: file, status: 'modified', staged: isStaged });
-    }
-
-    // Deleted files
-    for (const file of status.deleted) {
-      files.push({ path: file, status: 'deleted', staged: false });
-    }
-
-    // Renamed files
-    for (const file of status.renamed) {
-      files.push({ path: file.to, status: 'renamed', staged: true });
-    }
-
-    // Untracked (new) files
-    for (const file of status.not_added) {
-      files.push({ path: file, status: 'untracked', staged: false });
-    }
-
-    // Also check created files
-    for (const file of status.created) {
-      if (!files.some(f => f.path === file)) {
-        files.push({ path: file, status: 'added', staged: true });
+    // Process the files array which has detailed info about each file
+    // status.files is an array of FileStatusResult with index, working_dir, path
+    for (const file of status.files) {
+      const path = file.path;
+      
+      // Skip if we've already processed this file
+      if (addedPaths.has(path)) continue;
+      
+      // Index status (staged area): ' ' = unmodified, M = modified, A = added, D = deleted, R = renamed, ? = untracked
+      // Working dir status: same meanings for unstaged changes
+      const indexStatus = file.index;
+      const workingStatus = file.working_dir;
+      
+      // Determine file status and staged state
+      // A file can have both staged and unstaged changes
+      
+      // Staged changes (index !== ' ' and index !== '?')
+      if (indexStatus && indexStatus !== ' ' && indexStatus !== '?') {
+        let status: UncommittedFile['status'] = 'modified';
+        if (indexStatus === 'A') status = 'added';
+        else if (indexStatus === 'D') status = 'deleted';
+        else if (indexStatus === 'R') status = 'renamed';
+        else if (indexStatus === 'M') status = 'modified';
+        
+        files.push({ path, status, staged: true });
+        addedPaths.add(path + ':staged');
       }
+      
+      // Unstaged changes (working_dir !== ' ' and working_dir !== '?')
+      if (workingStatus && workingStatus !== ' ') {
+        let status: UncommittedFile['status'] = 'modified';
+        if (workingStatus === '?') status = 'untracked';
+        else if (workingStatus === 'A') status = 'added';
+        else if (workingStatus === 'D') status = 'deleted';
+        else if (workingStatus === 'M') status = 'modified';
+        
+        files.push({ path, status, staged: false });
+        addedPaths.add(path + ':unstaged');
+      }
+      
+      addedPaths.add(path);
     }
 
     return files;
-  } catch {
+  } catch (error) {
+    console.error('Error getting uncommitted files:', error);
     return [];
   }
 }
@@ -1426,5 +1757,284 @@ export async function getStashes(): Promise<StashEntry[]> {
     return stashes;
   } catch {
     return [];
+  }
+}
+
+// ========================================
+// Staging & Commit Functions
+// ========================================
+
+// Stage a single file
+export async function stageFile(filePath: string): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    await git.add(filePath);
+    return { success: true, message: `Staged ${filePath}` };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+// Unstage a single file
+export async function unstageFile(filePath: string): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    await git.raw(['restore', '--staged', filePath]);
+    return { success: true, message: `Unstaged ${filePath}` };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+// Stage all changes
+export async function stageAll(): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    await git.add('-A');
+    return { success: true, message: 'Staged all changes' };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+// Unstage all changes
+export async function unstageAll(): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    await git.raw(['restore', '--staged', '.']);
+    return { success: true, message: 'Unstaged all changes' };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+// Discard changes in a file (revert to last commit)
+export async function discardFileChanges(filePath: string): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    await git.raw(['restore', filePath]);
+    return { success: true, message: `Discarded changes in ${filePath}` };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
+  }
+}
+
+// File diff types
+export interface FileDiffHunk {
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: FileDiffLine[];
+}
+
+export interface FileDiffLine {
+  type: 'context' | 'add' | 'delete';
+  content: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+}
+
+export interface FileDiff {
+  filePath: string;
+  oldPath?: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked';
+  hunks: FileDiffHunk[];
+  isBinary: boolean;
+  additions: number;
+  deletions: number;
+}
+
+// Get diff for a specific file
+export async function getFileDiff(filePath: string, staged: boolean): Promise<FileDiff | null> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    const args = staged 
+      ? ['diff', '--staged', '--', filePath]
+      : ['diff', '--', filePath];
+    
+    const diffOutput = await git.raw(args);
+    
+    // If no diff output, the file might be untracked
+    if (!diffOutput.trim()) {
+      // Check if it's an untracked file
+      const status = await git.status();
+      const isUntracked = status.not_added.includes(filePath);
+      
+      if (isUntracked) {
+        // Read the file content for untracked files
+        const fullPath = path.join(repoPath!, filePath);
+        try {
+          const content = await fs.promises.readFile(fullPath, 'utf-8');
+          const lines = content.split('\n');
+          
+          return {
+            filePath,
+            status: 'untracked',
+            isBinary: false,
+            additions: lines.length,
+            deletions: 0,
+            hunks: [{
+              header: `@@ -0,0 +1,${lines.length} @@`,
+              oldStart: 0,
+              oldLines: 0,
+              newStart: 1,
+              newLines: lines.length,
+              lines: lines.map((line, idx) => ({
+                type: 'add' as const,
+                content: line,
+                newLineNumber: idx + 1,
+              })),
+            }],
+          };
+        } catch {
+          return null;
+        }
+      }
+      
+      return null;
+    }
+
+    // Parse the diff output
+    return parseDiff(diffOutput, filePath);
+  } catch (error) {
+    console.error('Error getting file diff:', error);
+    return null;
+  }
+}
+
+// Parse unified diff format
+function parseDiff(diffOutput: string, filePath: string): FileDiff {
+  const lines = diffOutput.split('\n');
+  const hunks: FileDiffHunk[] = [];
+  let currentHunk: FileDiffHunk | null = null;
+  let oldLineNum = 0;
+  let newLineNum = 0;
+  let additions = 0;
+  let deletions = 0;
+  let isBinary = false;
+  let status: FileDiff['status'] = 'modified';
+  let oldPath: string | undefined;
+
+  for (const line of lines) {
+    // Check for binary file
+    if (line.startsWith('Binary files')) {
+      isBinary = true;
+      continue;
+    }
+
+    // Check for new file
+    if (line.startsWith('new file mode')) {
+      status = 'added';
+      continue;
+    }
+
+    // Check for deleted file
+    if (line.startsWith('deleted file mode')) {
+      status = 'deleted';
+      continue;
+    }
+
+    // Check for rename
+    if (line.startsWith('rename from ')) {
+      oldPath = line.replace('rename from ', '');
+      status = 'renamed';
+      continue;
+    }
+
+    // Parse hunk header
+    const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@(.*)$/);
+    if (hunkMatch) {
+      if (currentHunk) {
+        hunks.push(currentHunk);
+      }
+      
+      oldLineNum = parseInt(hunkMatch[1]);
+      newLineNum = parseInt(hunkMatch[3]);
+      
+      currentHunk = {
+        header: line,
+        oldStart: oldLineNum,
+        oldLines: parseInt(hunkMatch[2] || '1'),
+        newStart: newLineNum,
+        newLines: parseInt(hunkMatch[4] || '1'),
+        lines: [],
+      };
+      continue;
+    }
+
+    // Parse diff lines
+    if (currentHunk) {
+      if (line.startsWith('+') && !line.startsWith('+++')) {
+        additions++;
+        currentHunk.lines.push({
+          type: 'add',
+          content: line.slice(1),
+          newLineNumber: newLineNum++,
+        });
+      } else if (line.startsWith('-') && !line.startsWith('---')) {
+        deletions++;
+        currentHunk.lines.push({
+          type: 'delete',
+          content: line.slice(1),
+          oldLineNumber: oldLineNum++,
+        });
+      } else if (line.startsWith(' ')) {
+        currentHunk.lines.push({
+          type: 'context',
+          content: line.slice(1),
+          oldLineNumber: oldLineNum++,
+          newLineNumber: newLineNum++,
+        });
+      }
+    }
+  }
+
+  // Don't forget the last hunk
+  if (currentHunk) {
+    hunks.push(currentHunk);
+  }
+
+  return {
+    filePath,
+    oldPath,
+    status,
+    hunks,
+    isBinary,
+    additions,
+    deletions,
+  };
+}
+
+// Commit staged changes
+export async function commitChanges(
+  message: string, 
+  description?: string
+): Promise<{ success: boolean; message: string }> {
+  if (!git) throw new Error('No repository selected');
+
+  try {
+    // Check if there are staged changes
+    const status = await git.status();
+    if (status.staged.length === 0) {
+      return { success: false, message: 'No staged changes to commit' };
+    }
+
+    // Build commit message (summary + optional description)
+    const fullMessage = description 
+      ? `${message}\n\n${description}`
+      : message;
+
+    await git.commit(fullMessage);
+    return { success: true, message: `Committed: ${message}` };
+  } catch (error) {
+    return { success: false, message: (error as Error).message };
   }
 }

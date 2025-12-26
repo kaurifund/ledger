@@ -147,6 +147,105 @@ export interface StashEntry {
   date: string;
 }
 
+// Staging file diff types (for working directory changes)
+export interface StagingDiffHunk {
+  header: string;
+  oldStart: number;
+  oldLines: number;
+  newStart: number;
+  newLines: number;
+  lines: StagingDiffLine[];
+}
+
+export interface StagingDiffLine {
+  type: 'context' | 'add' | 'delete';
+  content: string;
+  oldLineNumber?: number;
+  newLineNumber?: number;
+}
+
+export interface StagingFileDiff {
+  filePath: string;
+  oldPath?: string;
+  status: 'added' | 'modified' | 'deleted' | 'renamed' | 'untracked';
+  hunks: StagingDiffHunk[];
+  isBinary: boolean;
+  additions: number;
+  deletions: number;
+}
+
+// ========================================
+// PR Review Types
+// ========================================
+
+export interface PRComment {
+  id: string;
+  author: { login: string };
+  authorAssociation: string;
+  body: string;
+  createdAt: string;
+  url: string;
+  isMinimized: boolean;
+}
+
+export interface PRReview {
+  id: string;
+  author: { login: string };
+  authorAssociation: string;
+  state: 'APPROVED' | 'CHANGES_REQUESTED' | 'COMMENTED' | 'PENDING' | 'DISMISSED';
+  body: string;
+  submittedAt: string;
+}
+
+export interface PRFile {
+  path: string;
+  additions: number;
+  deletions: number;
+}
+
+export interface PRCommit {
+  oid: string;
+  messageHeadline: string;
+  author: { name: string; email: string };
+  committedDate: string;
+}
+
+export interface PRReviewComment {
+  id: number;
+  author: { login: string };
+  authorAssociation: string;
+  body: string;
+  path: string;
+  line: number | null;
+  startLine: number | null;
+  side: 'LEFT' | 'RIGHT';
+  diffHunk: string;
+  createdAt: string;
+  inReplyToId: number | null;
+  url: string;
+}
+
+export interface PRDetail {
+  number: number;
+  title: string;
+  body: string;
+  author: { login: string };
+  state: 'OPEN' | 'CLOSED' | 'MERGED';
+  reviewDecision: 'APPROVED' | 'CHANGES_REQUESTED' | 'REVIEW_REQUIRED' | null;
+  baseRefName: string;
+  headRefName: string;
+  additions: number;
+  deletions: number;
+  createdAt: string;
+  updatedAt: string;
+  url: string;
+  comments: PRComment[];
+  reviews: PRReview[];
+  files: PRFile[];
+  commits: PRCommit[];
+  reviewComments?: PRReviewComment[];
+}
+
 export interface UncommittedFile {
   path: string;
   status: 'modified' | 'added' | 'deleted' | 'renamed' | 'untracked';
@@ -172,11 +271,20 @@ export interface ElectronAPI {
   getWorktrees: () => Promise<Worktree[] | { error: string }>;
   // Checkout operations
   checkoutBranch: (branchName: string) => Promise<CheckoutResult>;
+  createBranch: (branchName: string, checkout?: boolean) => Promise<{ success: boolean; message: string }>;
+  pushBranch: (branchName?: string, setUpstream?: boolean) => Promise<{ success: boolean; message: string }>;
   checkoutRemoteBranch: (remoteBranch: string) => Promise<CheckoutResult>;
   openWorktree: (worktreePath: string) => Promise<{ success: boolean; message: string }>;
   // Pull requests
   getPullRequests: () => Promise<PullRequestsResult>;
   openPullRequest: (url: string) => Promise<{ success: boolean; message: string }>;
+  createPullRequest: (options: { 
+    title: string; 
+    body?: string; 
+    baseBranch?: string; 
+    draft?: boolean; 
+    web?: boolean 
+  }) => Promise<{ success: boolean; message: string; url?: string }>;
   checkoutPRBranch: (branchName: string) => Promise<CheckoutResult>;
   // Remote operations
   getGitHubUrl: () => Promise<string | null>;
@@ -193,6 +301,18 @@ export interface ElectronAPI {
   getStashes: () => Promise<StashEntry[]>;
   // Worktree operations
   convertWorktreeToBranch: (worktreePath: string) => Promise<{ success: boolean; message: string; branchName?: string }>;
+  // Staging & commit operations
+  stageFile: (filePath: string) => Promise<{ success: boolean; message: string }>;
+  unstageFile: (filePath: string) => Promise<{ success: boolean; message: string }>;
+  stageAll: () => Promise<{ success: boolean; message: string }>;
+  unstageAll: () => Promise<{ success: boolean; message: string }>;
+  discardFileChanges: (filePath: string) => Promise<{ success: boolean; message: string }>;
+  getFileDiff: (filePath: string, staged: boolean) => Promise<StagingFileDiff | null>;
+  commitChanges: (message: string, description?: string) => Promise<{ success: boolean; message: string }>;
+  // PR Review operations
+  getPRDetail: (prNumber: number) => Promise<PRDetail | null>;
+  getPRReviewComments: (prNumber: number) => Promise<PRReviewComment[]>;
+  getPRFileDiff: (prNumber: number, filePath: string) => Promise<string | null>;
 }
 
 declare global {

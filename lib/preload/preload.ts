@@ -12,11 +12,15 @@ const electronAPI = {
   getWorktrees: () => ipcRenderer.invoke('get-worktrees'),
   // Checkout operations
   checkoutBranch: (branchName: string) => ipcRenderer.invoke('checkout-branch', branchName),
+  createBranch: (branchName: string, checkout?: boolean) => ipcRenderer.invoke('create-branch', branchName, checkout),
+  pushBranch: (branchName?: string, setUpstream?: boolean) => ipcRenderer.invoke('push-branch', branchName, setUpstream),
   checkoutRemoteBranch: (remoteBranch: string) => ipcRenderer.invoke('checkout-remote-branch', remoteBranch),
   openWorktree: (worktreePath: string) => ipcRenderer.invoke('open-worktree', worktreePath),
   // Pull requests
   getPullRequests: () => ipcRenderer.invoke('get-pull-requests'),
   openPullRequest: (url: string) => ipcRenderer.invoke('open-pull-request', url),
+  createPullRequest: (options: { title: string; body?: string; baseBranch?: string; draft?: boolean; web?: boolean }) => 
+    ipcRenderer.invoke('create-pull-request', options),
   checkoutPRBranch: (branchName: string) => ipcRenderer.invoke('checkout-pr-branch', branchName),
   // Remote operations
   getGitHubUrl: () => ipcRenderer.invoke('get-github-url'),
@@ -35,6 +39,18 @@ const electronAPI = {
   getStashes: () => ipcRenderer.invoke('get-stashes'),
   // Worktree operations
   convertWorktreeToBranch: (worktreePath: string) => ipcRenderer.invoke('convert-worktree-to-branch', worktreePath),
+  // Staging & commit operations
+  stageFile: (filePath: string) => ipcRenderer.invoke('stage-file', filePath),
+  unstageFile: (filePath: string) => ipcRenderer.invoke('unstage-file', filePath),
+  stageAll: () => ipcRenderer.invoke('stage-all'),
+  unstageAll: () => ipcRenderer.invoke('unstage-all'),
+  discardFileChanges: (filePath: string) => ipcRenderer.invoke('discard-file-changes', filePath),
+  getFileDiff: (filePath: string, staged: boolean) => ipcRenderer.invoke('get-file-diff', filePath, staged),
+  commitChanges: (message: string, description?: string) => ipcRenderer.invoke('commit-changes', message, description),
+  // PR Review operations
+  getPRDetail: (prNumber: number) => ipcRenderer.invoke('get-pr-detail', prNumber),
+  getPRReviewComments: (prNumber: number) => ipcRenderer.invoke('get-pr-review-comments', prNumber),
+  getPRFileDiff: (prNumber: number, filePath: string) => ipcRenderer.invoke('get-pr-file-diff', prNumber, filePath),
 }
 
 // Use `contextBridge` APIs to expose APIs to

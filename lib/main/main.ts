@@ -8,9 +8,12 @@ import {
   getBranchesWithMetadata, 
   getEnhancedWorktrees,
   checkoutBranch,
+  createBranch,
+  pushBranch,
   checkoutRemoteBranch,
   getPullRequests,
   openPullRequest,
+  createPullRequest,
   getGitHubUrl,
   openBranchInGitHub,
   pullBranch,
@@ -23,6 +26,18 @@ import {
   getCommitDiff,
   getStashes,
   convertWorktreeToBranch,
+  // Staging & commit APIs
+  stageFile,
+  unstageFile,
+  stageAll,
+  unstageAll,
+  discardFileChanges,
+  getFileDiff,
+  commitChanges,
+  // PR Review APIs
+  getPRDetail,
+  getPRReviewComments,
+  getPRFileDiff,
 } from './git-service'
 import { getLastRepoPath, saveLastRepoPath } from './settings-service'
 
@@ -106,6 +121,22 @@ app.whenReady().then(() => {
     }
   });
 
+  ipcMain.handle('create-branch', async (_, branchName: string, checkout: boolean = true) => {
+    try {
+      return await createBranch(branchName, checkout);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('push-branch', async (_, branchName?: string, setUpstream: boolean = true) => {
+    try {
+      return await pushBranch(branchName, setUpstream);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
   ipcMain.handle('checkout-remote-branch', async (_, remoteBranch: string) => {
     try {
       return await checkoutRemoteBranch(remoteBranch);
@@ -130,6 +161,20 @@ app.whenReady().then(() => {
 
   ipcMain.handle('open-pull-request', async (_, url: string) => {
     return await openPullRequest(url);
+  });
+
+  ipcMain.handle('create-pull-request', async (_, options: {
+    title: string;
+    body?: string;
+    baseBranch?: string;
+    draft?: boolean;
+    web?: boolean;
+  }) => {
+    try {
+      return await createPullRequest(options);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
   });
 
   ipcMain.handle('get-github-url', async () => {
@@ -202,6 +247,88 @@ app.whenReady().then(() => {
       return await getStashes();
     } catch (error) {
       return [];
+    }
+  });
+
+  // Staging & Commit handlers
+  ipcMain.handle('stage-file', async (_, filePath: string) => {
+    try {
+      return await stageFile(filePath);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('unstage-file', async (_, filePath: string) => {
+    try {
+      return await unstageFile(filePath);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('stage-all', async () => {
+    try {
+      return await stageAll();
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('unstage-all', async () => {
+    try {
+      return await unstageAll();
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('discard-file-changes', async (_, filePath: string) => {
+    try {
+      return await discardFileChanges(filePath);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  ipcMain.handle('get-file-diff', async (_, filePath: string, staged: boolean) => {
+    try {
+      return await getFileDiff(filePath, staged);
+    } catch (error) {
+      return null;
+    }
+  });
+
+  ipcMain.handle('commit-changes', async (_, message: string, description?: string) => {
+    try {
+      return await commitChanges(message, description);
+    } catch (error) {
+      return { success: false, message: (error as Error).message };
+    }
+  });
+
+  // PR Review handlers
+  ipcMain.handle('get-pr-detail', async (_, prNumber: number) => {
+    try {
+      return await getPRDetail(prNumber);
+    } catch (error) {
+      return null;
+    }
+  });
+
+  ipcMain.handle('get-pr-review-comments', async (_, prNumber: number) => {
+    try {
+      return await getPRReviewComments(prNumber);
+    } catch (error) {
+      return [];
+    }
+  });
+
+  ipcMain.handle('get-pr-file-diff', async (_, prNumber: number, filePath: string) => {
+    try {
+      return await getPRFileDiff(prNumber, filePath);
+    } catch (error) {
+      return null;
     }
   });
 

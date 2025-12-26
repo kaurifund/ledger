@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
-import type { Branch, Worktree, BranchFilter, BranchSort, CheckoutResult, PullRequest, Commit, WorkingStatus, PRFilter, PRSort, GraphCommit, CommitDiff, StashEntry } from './types/electron'
+import type { Branch, Worktree, BranchFilter, BranchSort, CheckoutResult, PullRequest, Commit, WorkingStatus, UncommittedFile, PRFilter, PRSort, GraphCommit, CommitDiff, StashEntry, StagingFileDiff, PRDetail, PRReviewComment } from './types/electron'
 import './styles/app.css'
 import { useWindowContext } from './components/window'
 
@@ -26,6 +26,13 @@ interface MenuItem {
   disabled?: boolean;
 }
 
+type SidebarFocusType = 'pr' | 'branch' | 'remote' | 'worktree' | 'stash' | 'uncommitted';
+
+interface SidebarFocus {
+  type: SidebarFocusType;
+  data: PullRequest | Branch | Worktree | StashEntry | WorkingStatus;
+}
+
 export default function App() {
   const [repoPath, setRepoPath] = useState<string | null>(null)
   const [branches, setBranches] = useState<Branch[]>([])
@@ -40,6 +47,9 @@ export default function App() {
   const [status, setStatus] = useState<StatusMessage | null>(null)
   const [switching, setSwitching] = useState(false)
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
+  const [showNewBranchModal, setShowNewBranchModal] = useState(false)
+  const [newBranchName, setNewBranchName] = useState('')
+  const [creatingBranch, setCreatingBranch] = useState(false)
   const [githubUrl, setGithubUrl] = useState<string | null>(null)
   const { setTitle } = useWindowContext()
   
@@ -52,6 +62,7 @@ export default function App() {
   const [commitDiff, setCommitDiff] = useState<CommitDiff | null>(null)
   const [stashes, setStashes] = useState<StashEntry[]>([])
   const [loadingDiff, setLoadingDiff] = useState(false)
+  const [sidebarFocus, setSidebarFocus] = useState<SidebarFocus | null>(null)
   
   // Sidebar collapsed state
   const [sidebarSections, setSidebarSections] = useState({
@@ -59,6 +70,7 @@ export default function App() {
     remotes: false,
     worktrees: true,
     stashes: false,
+    prs: true,
   })
   
   // Filter and sort state
@@ -179,6 +191,7 @@ export default function App() {
 
   // Fetch diff when a commit is selected
   const handleSelectCommit = useCallback(async (commit: GraphCommit) => {
+    setSidebarFocus(null) // Clear sidebar focus when selecting a commit
     setSelectedCommit(commit)
     setLoadingDiff(true)
     try {
@@ -189,6 +202,13 @@ export default function App() {
     } finally {
       setLoadingDiff(false)
     }
+  }, [])
+
+  // Handle sidebar item focus (single click)
+  const handleSidebarFocus = useCallback((type: SidebarFocusType, data: PullRequest | Branch | Worktree | StashEntry | WorkingStatus) => {
+    setSelectedCommit(null) // Clear commit selection when focusing sidebar item
+    setCommitDiff(null)
+    setSidebarFocus({ type, data })
   }, [])
 
   // Toggle sidebar section
@@ -406,6 +426,30 @@ export default function App() {
     if (branch.current || switching) return
     handleLocalBranchSwitch(branch)
   }, [switching])
+
+  // Create a new branch
+  const handleCreateBranch = useCallback(async () => {
+    if (!newBranchName.trim() || creatingBranch) return
+    
+    setCreatingBranch(true)
+    setStatus({ type: 'info', message: `Creating branch '${newBranchName}'...` })
+    
+    try {
+      const result = await window.electronAPI.createBranch(newBranchName.trim(), true)
+      if (result.success) {
+        setStatus({ type: 'success', message: result.message })
+        setShowNewBranchModal(false)
+        setNewBranchName('')
+        await refresh()
+      } else {
+        setStatus({ type: 'error', message: result.message })
+      }
+    } catch (error) {
+      setStatus({ type: 'error', message: (error as Error).message })
+    } finally {
+      setCreatingBranch(false)
+    }
+  }, [newBranchName, creatingBranch, refresh])
 
   const handleRemoteBranchDoubleClick = useCallback(async (branch: Branch) => {
     if (switching) return
@@ -661,6 +705,61 @@ export default function App() {
               {item.label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* New Branch Modal */}
+      {showNewBranchModal && (
+        <div className="modal-overlay" onClick={() => setShowNewBranchModal(false)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">Create New Branch</h3>
+              <button 
+                className="modal-close"
+                onClick={() => setShowNewBranchModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <label className="modal-label">
+                Branch name
+                <input
+                  type="text"
+                  className="modal-input"
+                  value={newBranchName}
+                  onChange={(e) => setNewBranchName(e.target.value)}
+                  placeholder="feature/my-new-feature"
+                  autoFocus
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' && newBranchName.trim()) {
+                      handleCreateBranch()
+                    } else if (e.key === 'Escape') {
+                      setShowNewBranchModal(false)
+                    }
+                  }}
+                />
+              </label>
+              <p className="modal-hint">
+                Branch will be created from current HEAD and checked out
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button 
+                className="btn btn-secondary"
+                onClick={() => setShowNewBranchModal(false)}
+              >
+                Cancel
+              </button>
+              <button 
+                className="btn btn-primary"
+                onClick={handleCreateBranch}
+                disabled={!newBranchName.trim() || creatingBranch}
+              >
+                {creatingBranch ? 'Creating...' : 'Create Branch'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
 
@@ -1169,22 +1268,83 @@ export default function App() {
         <main className="work-mode-layout">
           {/* Sidebar */}
           <aside className="work-sidebar">
-            {/* Branches Section */}
+            {/* PRs Section */}
             <div className="sidebar-section">
               <div 
                 className="sidebar-section-header"
-                onClick={() => toggleSidebarSection('branches')}
+                onClick={() => toggleSidebarSection('prs')}
               >
-                <span className={`sidebar-chevron ${sidebarSections.branches ? 'open' : ''}`}>▸</span>
-                <span className="sidebar-section-title">Branches</span>
-                <span className="sidebar-count">{localBranches.length}</span>
+                <span className={`sidebar-chevron ${sidebarSections.prs ? 'open' : ''}`}>▸</span>
+                <span className="sidebar-section-title">Pull Requests</span>
+                <span className="sidebar-count">{filteredPRs.length}</span>
+              </div>
+              {sidebarSections.prs && (
+                <ul className="sidebar-list">
+                  {prError ? (
+                    <li className="sidebar-empty sidebar-error">{prError}</li>
+                  ) : filteredPRs.length === 0 ? (
+                    <li className="sidebar-empty">No open PRs</li>
+                  ) : (
+                    filteredPRs.map((pr) => (
+                      <li
+                        key={pr.number}
+                        className={`sidebar-item ${pr.isDraft ? 'draft' : ''} ${switching ? 'disabled' : ''} ${sidebarFocus?.type === 'pr' && (sidebarFocus.data as PullRequest).number === pr.number ? 'selected' : ''}`}
+                        onClick={() => handleSidebarFocus('pr', pr)}
+                        onDoubleClick={() => handlePRDoubleClick(pr)}
+                        onContextMenu={(e) => handleContextMenu(e, 'pr', pr)}
+                        title={`#${pr.number} ${pr.title}`}
+                      >
+                        <span className="sidebar-item-name">
+                          <span className="sidebar-pr-number">#{pr.number}</span>
+                          {pr.title}
+                        </span>
+                        {pr.isDraft && <span className="sidebar-pr-draft">draft</span>}
+                      </li>
+                    ))
+                  )}
+                </ul>
+              )}
+            </div>
+
+            {/* Branches Section */}
+            <div className="sidebar-section">
+              <div className="sidebar-section-header">
+                <div 
+                  className="sidebar-section-toggle"
+                  onClick={() => toggleSidebarSection('branches')}
+                >
+                  <span className={`sidebar-chevron ${sidebarSections.branches ? 'open' : ''}`}>▸</span>
+                  <span className="sidebar-section-title">Branches</span>
+                  <span className="sidebar-count">{localBranches.length}</span>
+                </div>
+                <button 
+                  className="sidebar-section-action"
+                  onClick={(e) => { e.stopPropagation(); setShowNewBranchModal(true); }}
+                  title="Create new branch"
+                >
+                  +
+                </button>
               </div>
               {sidebarSections.branches && (
                 <ul className="sidebar-list">
+                  {/* Uncommitted changes entry */}
+                  {workingStatus?.hasChanges && (
+                    <li
+                      className={`sidebar-item uncommitted ${sidebarFocus?.type === 'uncommitted' ? 'selected' : ''}`}
+                      onClick={() => handleSidebarFocus('uncommitted', workingStatus)}
+                    >
+                      <span className="sidebar-uncommitted-icon">◐</span>
+                      <span className="sidebar-item-name">Uncommitted</span>
+                      <span className="sidebar-uncommitted-count">
+                        {workingStatus.stagedCount + workingStatus.unstagedCount}
+                      </span>
+                    </li>
+                  )}
                   {localBranches.map((branch) => (
                     <li
                       key={branch.name}
-                      className={`sidebar-item ${branch.current ? 'current' : ''} ${switching ? 'disabled' : ''}`}
+                      className={`sidebar-item ${branch.current ? 'current' : ''} ${switching ? 'disabled' : ''} ${sidebarFocus?.type === 'branch' && (sidebarFocus.data as Branch).name === branch.name ? 'selected' : ''}`}
+                      onClick={() => handleSidebarFocus('branch', branch)}
                       onDoubleClick={() => handleBranchDoubleClick(branch)}
                     >
                       {branch.current && <span className="sidebar-current-dot">●</span>}
@@ -1210,7 +1370,8 @@ export default function App() {
                   {remoteBranches.map((branch) => (
                     <li
                       key={branch.name}
-                      className={`sidebar-item ${switching ? 'disabled' : ''}`}
+                      className={`sidebar-item ${switching ? 'disabled' : ''} ${sidebarFocus?.type === 'remote' && (sidebarFocus.data as Branch).name === branch.name ? 'selected' : ''}`}
+                      onClick={() => handleSidebarFocus('remote', branch)}
                       onDoubleClick={() => handleRemoteBranchDoubleClick(branch)}
                     >
                       <span className="sidebar-item-name">{branch.name.replace('remotes/', '').replace(/^origin\//, '')}</span>
@@ -1235,7 +1396,8 @@ export default function App() {
                   {worktrees.map((wt) => (
                     <li
                       key={wt.path}
-                      className={`sidebar-item ${wt.branch === currentBranch ? 'current' : ''} ${switching ? 'disabled' : ''}`}
+                      className={`sidebar-item ${wt.branch === currentBranch ? 'current' : ''} ${switching ? 'disabled' : ''} ${sidebarFocus?.type === 'worktree' && (sidebarFocus.data as Worktree).path === wt.path ? 'selected' : ''}`}
+                      onClick={() => handleSidebarFocus('worktree', wt)}
                       onDoubleClick={() => handleWorktreeDoubleClick(wt)}
                     >
                       {wt.branch === currentBranch && <span className="sidebar-current-dot">●</span>}
@@ -1262,7 +1424,11 @@ export default function App() {
                     <li className="sidebar-empty">No stashes</li>
                   ) : (
                     stashes.map((stash) => (
-                      <li key={stash.index} className="sidebar-item">
+                      <li 
+                        key={stash.index} 
+                        className={`sidebar-item ${sidebarFocus?.type === 'stash' && (sidebarFocus.data as StashEntry).index === stash.index ? 'selected' : ''}`}
+                        onClick={() => handleSidebarFocus('stash', stash)}
+                      >
                         <span className="sidebar-item-name" title={stash.message}>
                           stash@{`{${stash.index}}`}: {stash.message}
                         </span>
@@ -1295,10 +1461,29 @@ export default function App() {
 
           {/* Detail Panel */}
           <aside className="work-detail">
-            {!selectedCommit ? (
+            {sidebarFocus?.type === 'uncommitted' && workingStatus ? (
+              <StagingPanel 
+                workingStatus={workingStatus}
+                onRefresh={refresh}
+                onStatusChange={setStatus}
+              />
+            ) : sidebarFocus?.type === 'pr' ? (
+              <PRReviewPanel 
+                pr={sidebarFocus.data as PullRequest}
+                formatRelativeTime={formatRelativeTime}
+              />
+            ) : sidebarFocus ? (
+              <SidebarDetailPanel 
+                focus={sidebarFocus} 
+                formatRelativeTime={formatRelativeTime}
+                formatDate={formatDate}
+                currentBranch={currentBranch}
+                onStatusChange={setStatus}
+              />
+            ) : !selectedCommit ? (
               <div className="detail-empty">
                 <span className="detail-empty-icon">◇</span>
-                <p>Select a commit to view details</p>
+                <p>Select an item to view details</p>
               </div>
             ) : loadingDiff ? (
               <div className="detail-loading">Loading diff...</div>
@@ -1634,6 +1819,936 @@ function DiffPanel({ diff, formatRelativeTime }: DiffPanelProps) {
             )}
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ========================================
+// Sidebar Detail Panel Component
+// ========================================
+
+interface SidebarDetailPanelProps {
+  focus: SidebarFocus;
+  formatRelativeTime: (date: string) => string;
+  formatDate: (date?: string) => string;
+  currentBranch: string;
+  onStatusChange?: (status: StatusMessage | null) => void;
+}
+
+function SidebarDetailPanel({ focus, formatRelativeTime, formatDate, currentBranch, onStatusChange }: SidebarDetailPanelProps) {
+  const [creatingPR, setCreatingPR] = useState(false);
+  const [pushing, setPushing] = useState(false);
+
+  const handleCreatePR = async (branchName: string) => {
+    setCreatingPR(true);
+    onStatusChange?.({ type: 'info', message: 'Opening PR creation in browser...' });
+    
+    try {
+      // Use --web flag to open GitHub's PR creation page
+      const result = await window.electronAPI.createPullRequest({
+        title: branchName.replace(/[-_]/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+        web: true,
+      });
+      
+      if (result.success) {
+        onStatusChange?.({ type: 'success', message: result.message });
+      } else {
+        onStatusChange?.({ type: 'error', message: result.message });
+      }
+    } catch (error) {
+      onStatusChange?.({ type: 'error', message: (error as Error).message });
+    } finally {
+      setCreatingPR(false);
+    }
+  };
+
+  const handlePush = async (branchName: string) => {
+    setPushing(true);
+    onStatusChange?.({ type: 'info', message: `Pushing ${branchName} to origin...` });
+    
+    try {
+      const result = await window.electronAPI.pushBranch(branchName, true);
+      
+      if (result.success) {
+        onStatusChange?.({ type: 'success', message: result.message });
+      } else {
+        onStatusChange?.({ type: 'error', message: result.message });
+      }
+    } catch (error) {
+      onStatusChange?.({ type: 'error', message: (error as Error).message });
+    } finally {
+      setPushing(false);
+    }
+  };
+
+  switch (focus.type) {
+    case 'pr': {
+      // Handled by PRReviewPanel
+      return null;
+    }
+    
+    case 'branch': {
+      const branch = focus.data as Branch;
+      const isMainOrMaster = branch.name === 'main' || branch.name === 'master';
+      return (
+        <div className="sidebar-detail-panel">
+          <div className="detail-type-badge">Local Branch</div>
+          <h3 className="detail-title">{branch.name}</h3>
+          <div className="detail-meta-grid">
+            <div className="detail-meta-item">
+              <span className="meta-label">Commit</span>
+              <code className="meta-value">{branch.commit?.slice(0, 7) || '—'}</code>
+            </div>
+            <div className="detail-meta-item">
+              <span className="meta-label">Status</span>
+              <span className="meta-value">
+                {branch.current ? 'Current' : 'Not checked out'}
+                {branch.isLocalOnly && ' · Local only'}
+              </span>
+            </div>
+            {branch.lastCommitDate && (
+              <div className="detail-meta-item">
+                <span className="meta-label">Last Commit</span>
+                <span className="meta-value">{formatDate(branch.lastCommitDate)}</span>
+              </div>
+            )}
+            {branch.firstCommitDate && (
+              <div className="detail-meta-item">
+                <span className="meta-label">First Commit</span>
+                <span className="meta-value">{formatDate(branch.firstCommitDate)}</span>
+              </div>
+            )}
+            {branch.commitCount !== undefined && (
+              <div className="detail-meta-item">
+                <span className="meta-label">Commits</span>
+                <span className="meta-value">{branch.commitCount}</span>
+              </div>
+            )}
+            <div className="detail-meta-item">
+              <span className="meta-label">Merged</span>
+              <span className="meta-value">{branch.isMerged ? 'Yes' : 'No'}</span>
+            </div>
+          </div>
+          
+          {/* Actions */}
+          <div className="detail-actions">
+            {branch.current && (
+              <button 
+                className="btn btn-primary"
+                onClick={() => handlePush(branch.name)}
+                disabled={pushing}
+              >
+                {pushing ? 'Pushing...' : 'Push to Origin'}
+              </button>
+            )}
+            {branch.current && !isMainOrMaster && (
+              <button 
+                className="btn btn-secondary"
+                onClick={() => handleCreatePR(branch.name)}
+                disabled={creatingPR}
+              >
+                {creatingPR ? 'Opening...' : 'Create Pull Request'}
+              </button>
+            )}
+            <button 
+              className="btn btn-secondary"
+              onClick={() => window.electronAPI.openBranchInGitHub(branch.name)}
+            >
+              View on GitHub
+            </button>
+          </div>
+          
+          {!branch.current && (
+            <div className="detail-actions-hint">
+              Double-click to switch to this branch
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    case 'remote': {
+      const branch = focus.data as Branch;
+      const displayName = branch.name.replace('remotes/', '').replace(/^origin\//, '');
+      return (
+        <div className="sidebar-detail-panel">
+          <div className="detail-type-badge">Remote Branch</div>
+          <h3 className="detail-title">{displayName}</h3>
+          <div className="detail-meta-grid">
+            <div className="detail-meta-item">
+              <span className="meta-label">Full Name</span>
+              <code className="meta-value">{branch.name}</code>
+            </div>
+            <div className="detail-meta-item">
+              <span className="meta-label">Commit</span>
+              <code className="meta-value">{branch.commit?.slice(0, 7) || '—'}</code>
+            </div>
+            {branch.lastCommitDate && (
+              <div className="detail-meta-item">
+                <span className="meta-label">Last Commit</span>
+                <span className="meta-value">{formatDate(branch.lastCommitDate)}</span>
+              </div>
+            )}
+            {branch.commitCount !== undefined && (
+              <div className="detail-meta-item">
+                <span className="meta-label">Commits</span>
+                <span className="meta-value">{branch.commitCount}</span>
+              </div>
+            )}
+            <div className="detail-meta-item">
+              <span className="meta-label">Merged</span>
+              <span className="meta-value">{branch.isMerged ? 'Yes' : 'No'}</span>
+            </div>
+          </div>
+          <div className="detail-actions-hint">
+            Double-click to checkout this branch
+          </div>
+        </div>
+      );
+    }
+    
+    case 'worktree': {
+      const wt = focus.data as Worktree;
+      const isCurrent = wt.branch === currentBranch;
+      return (
+        <div className="sidebar-detail-panel">
+          <div className="detail-type-badge">Worktree</div>
+          <h3 className="detail-title">{wt.displayName}</h3>
+          <div className="detail-meta-grid">
+            <div className="detail-meta-item full-width">
+              <span className="meta-label">Path</span>
+              <code className="meta-value path">{wt.path}</code>
+            </div>
+            {wt.branch && (
+              <div className="detail-meta-item">
+                <span className="meta-label">Branch</span>
+                <code className="meta-value">{wt.branch}</code>
+              </div>
+            )}
+            <div className="detail-meta-item">
+              <span className="meta-label">Status</span>
+              <span className="meta-value">
+                {isCurrent ? 'Current' : 'Not checked out'}
+              </span>
+            </div>
+            <div className="detail-meta-item">
+              <span className="meta-label">Changes</span>
+              <span className="meta-value">
+                {wt.changedFileCount > 0 ? (
+                  <>
+                    {wt.changedFileCount} {wt.changedFileCount === 1 ? 'file' : 'files'}
+                    {(wt.additions > 0 || wt.deletions > 0) && (
+                      <>
+                        {' · '}
+                        <span className="diff-additions">+{wt.additions}</span>
+                        {' '}
+                        <span className="diff-deletions">-{wt.deletions}</span>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  'Clean'
+                )}
+              </span>
+            </div>
+          </div>
+          {!isCurrent && wt.branch && (
+            <div className="detail-actions-hint">
+              Double-click to checkout this worktree
+            </div>
+          )}
+        </div>
+      );
+    }
+    
+    case 'stash': {
+      const stash = focus.data as StashEntry;
+      return (
+        <div className="sidebar-detail-panel">
+          <div className="detail-type-badge">Stash</div>
+          <h3 className="detail-title">stash@{`{${stash.index}}`}</h3>
+          <div className="detail-meta-grid">
+            <div className="detail-meta-item full-width">
+              <span className="meta-label">Message</span>
+              <span className="meta-value">{stash.message}</span>
+            </div>
+            <div className="detail-meta-item">
+              <span className="meta-label">Branch</span>
+              <code className="meta-value">{stash.branch || '—'}</code>
+            </div>
+            <div className="detail-meta-item">
+              <span className="meta-label">Date</span>
+              <span className="meta-value">{formatRelativeTime(stash.date)}</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+    
+    case 'uncommitted': {
+      // Render the full staging panel
+      return null; // Handled by parent component
+    }
+    
+    default:
+      return null;
+  }
+}
+
+// ========================================
+// Staging Panel Component
+// ========================================
+
+interface StagingPanelProps {
+  workingStatus: WorkingStatus;
+  onRefresh: () => Promise<void>;
+  onStatusChange: (status: StatusMessage | null) => void;
+}
+
+function StagingPanel({ workingStatus, onRefresh, onStatusChange }: StagingPanelProps) {
+  const [selectedFile, setSelectedFile] = useState<UncommittedFile | null>(null);
+  const [fileDiff, setFileDiff] = useState<StagingFileDiff | null>(null);
+  const [loadingDiff, setLoadingDiff] = useState(false);
+  const [commitMessage, setCommitMessage] = useState('');
+  const [commitDescription, setCommitDescription] = useState('');
+  const [isCommitting, setIsCommitting] = useState(false);
+
+  const stagedFiles = workingStatus.files.filter(f => f.staged);
+  const unstagedFiles = workingStatus.files.filter(f => !f.staged);
+
+  // Load diff when file is selected
+  useEffect(() => {
+    if (!selectedFile) {
+      setFileDiff(null);
+      return;
+    }
+
+    const loadDiff = async () => {
+      setLoadingDiff(true);
+      try {
+        const diff = await window.electronAPI.getFileDiff(selectedFile.path, selectedFile.staged);
+        setFileDiff(diff);
+      } catch (error) {
+        setFileDiff(null);
+      } finally {
+        setLoadingDiff(false);
+      }
+    };
+
+    loadDiff();
+  }, [selectedFile]);
+
+  // Stage a file
+  const handleStageFile = async (file: UncommittedFile) => {
+    const result = await window.electronAPI.stageFile(file.path);
+    if (result.success) {
+      onStatusChange({ type: 'success', message: result.message });
+      await onRefresh();
+    } else {
+      onStatusChange({ type: 'error', message: result.message });
+    }
+  };
+
+  // Unstage a file
+  const handleUnstageFile = async (file: UncommittedFile) => {
+    const result = await window.electronAPI.unstageFile(file.path);
+    if (result.success) {
+      onStatusChange({ type: 'success', message: result.message });
+      await onRefresh();
+    } else {
+      onStatusChange({ type: 'error', message: result.message });
+    }
+  };
+
+  // Stage all files
+  const handleStageAll = async () => {
+    const result = await window.electronAPI.stageAll();
+    if (result.success) {
+      onStatusChange({ type: 'success', message: result.message });
+      await onRefresh();
+    } else {
+      onStatusChange({ type: 'error', message: result.message });
+    }
+  };
+
+  // Unstage all files
+  const handleUnstageAll = async () => {
+    const result = await window.electronAPI.unstageAll();
+    if (result.success) {
+      onStatusChange({ type: 'success', message: result.message });
+      await onRefresh();
+    } else {
+      onStatusChange({ type: 'error', message: result.message });
+    }
+  };
+
+  // Commit changes
+  const handleCommit = async () => {
+    if (!commitMessage.trim() || stagedFiles.length === 0) return;
+
+    setIsCommitting(true);
+    try {
+      const result = await window.electronAPI.commitChanges(
+        commitMessage.trim(),
+        commitDescription.trim() || undefined
+      );
+      if (result.success) {
+        onStatusChange({ type: 'success', message: result.message });
+        setCommitMessage('');
+        setCommitDescription('');
+        await onRefresh();
+      } else {
+        onStatusChange({ type: 'error', message: result.message });
+      }
+    } catch (error) {
+      onStatusChange({ type: 'error', message: (error as Error).message });
+    } finally {
+      setIsCommitting(false);
+    }
+  };
+
+  // File status helpers
+  const getFileStatusIcon = (status: UncommittedFile['status']) => {
+    switch (status) {
+      case 'added': return '+';
+      case 'deleted': return '−';
+      case 'modified': return '●';
+      case 'renamed': return '→';
+      case 'untracked': return '?';
+      default: return '?';
+    }
+  };
+
+  const getFileStatusClass = (status: UncommittedFile['status']) => {
+    switch (status) {
+      case 'added': return 'file-added';
+      case 'deleted': return 'file-deleted';
+      case 'modified': return 'file-modified';
+      case 'renamed': return 'file-renamed';
+      case 'untracked': return 'file-untracked';
+      default: return '';
+    }
+  };
+
+  return (
+    <div className="staging-panel">
+      {/* Header */}
+      <div className="staging-header">
+        <div className="staging-title">
+          <span className="detail-type-badge uncommitted">Changes</span>
+          <span className="staging-stats">
+            <span className="diff-additions">+{workingStatus.additions}</span>
+            <span className="diff-deletions">-{workingStatus.deletions}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* File Lists */}
+      <div className="staging-files">
+        {/* Unstaged Section */}
+        <div className="staging-section">
+          <div className="staging-section-header">
+            <span className="staging-section-title">Unstaged</span>
+            <span className="staging-section-count">{unstagedFiles.length}</span>
+            {unstagedFiles.length > 0 && (
+              <button 
+                className="staging-action-btn"
+                onClick={handleStageAll}
+                title="Stage all"
+              >
+                Stage All ↑
+              </button>
+            )}
+          </div>
+          {unstagedFiles.length > 0 ? (
+            <ul className="staging-file-list">
+              {unstagedFiles.map((file) => (
+                <li 
+                  key={file.path} 
+                  className={`staging-file-item ${getFileStatusClass(file.status)} ${selectedFile?.path === file.path && !selectedFile.staged ? 'selected' : ''}`}
+                  onClick={() => setSelectedFile(file)}
+                >
+                  <span className="file-status-icon">{getFileStatusIcon(file.status)}</span>
+                  <span className="file-path" title={file.path}>{file.path}</span>
+                  <button 
+                    className="file-action-btn stage"
+                    onClick={(e) => { e.stopPropagation(); handleStageFile(file); }}
+                    title="Stage file"
+                  >
+                    +
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="staging-empty">No unstaged changes</div>
+          )}
+        </div>
+
+        {/* Staged Section */}
+        <div className="staging-section">
+          <div className="staging-section-header">
+            <span className="staging-section-title">Staged</span>
+            <span className="staging-section-count">{stagedFiles.length}</span>
+            {stagedFiles.length > 0 && (
+              <button 
+                className="staging-action-btn"
+                onClick={handleUnstageAll}
+                title="Unstage all"
+              >
+                Unstage All ↓
+              </button>
+            )}
+          </div>
+          {stagedFiles.length > 0 ? (
+            <ul className="staging-file-list">
+              {stagedFiles.map((file) => (
+                <li 
+                  key={file.path} 
+                  className={`staging-file-item ${getFileStatusClass(file.status)} ${selectedFile?.path === file.path && selectedFile.staged ? 'selected' : ''}`}
+                  onClick={() => setSelectedFile(file)}
+                >
+                  <span className="file-status-icon">{getFileStatusIcon(file.status)}</span>
+                  <span className="file-path" title={file.path}>{file.path}</span>
+                  <button 
+                    className="file-action-btn unstage"
+                    onClick={(e) => { e.stopPropagation(); handleUnstageFile(file); }}
+                    title="Unstage file"
+                  >
+                    −
+                  </button>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <div className="staging-empty">No staged changes</div>
+          )}
+        </div>
+      </div>
+
+      {/* Diff Preview */}
+      {selectedFile && (
+        <div className="staging-diff">
+          <div className="staging-diff-header">
+            <span className="staging-diff-title">{selectedFile.path}</span>
+            {fileDiff && (
+              <span className="staging-diff-stats">
+                <span className="diff-additions">+{fileDiff.additions}</span>
+                <span className="diff-deletions">-{fileDiff.deletions}</span>
+              </span>
+            )}
+          </div>
+          <div className="staging-diff-content">
+            {loadingDiff ? (
+              <div className="staging-diff-loading">Loading diff...</div>
+            ) : fileDiff?.isBinary ? (
+              <div className="staging-diff-binary">Binary file</div>
+            ) : fileDiff?.hunks.length === 0 ? (
+              <div className="staging-diff-empty">No changes to display</div>
+            ) : fileDiff ? (
+              fileDiff.hunks.map((hunk, hunkIdx) => (
+                <div key={hunkIdx} className="staging-hunk">
+                  <div className="staging-hunk-header">{hunk.header}</div>
+                  <div className="staging-hunk-lines">
+                    {hunk.lines.map((line, lineIdx) => (
+                      <div key={lineIdx} className={`staging-diff-line diff-line-${line.type}`}>
+                        <span className="diff-line-number old">{line.oldLineNumber || ''}</span>
+                        <span className="diff-line-number new">{line.newLineNumber || ''}</span>
+                        <span className="diff-line-prefix">
+                          {line.type === 'add' ? '+' : line.type === 'delete' ? '-' : ' '}
+                        </span>
+                        <span className="diff-line-content">{line.content}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="staging-diff-empty">Select a file to view diff</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Commit Form */}
+      <div className="staging-commit">
+        <input
+          type="text"
+          className="commit-summary-input"
+          placeholder="Commit message (required)"
+          value={commitMessage}
+          onChange={(e) => setCommitMessage(e.target.value)}
+          maxLength={72}
+        />
+        <textarea
+          className="commit-description-input"
+          placeholder="Description (optional)"
+          value={commitDescription}
+          onChange={(e) => setCommitDescription(e.target.value)}
+          rows={3}
+        />
+        <button
+          className="btn btn-primary commit-btn"
+          onClick={handleCommit}
+          disabled={!commitMessage.trim() || stagedFiles.length === 0 || isCommitting}
+        >
+          {isCommitting ? 'Committing...' : `Commit ${stagedFiles.length} file${stagedFiles.length !== 1 ? 's' : ''}`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ========================================
+// PR Review Panel Component
+// ========================================
+
+interface PRReviewPanelProps {
+  pr: PullRequest;
+  formatRelativeTime: (date: string) => string;
+}
+
+type PRTab = 'conversation' | 'files' | 'commits';
+
+// Known AI/bot authors
+const AI_AUTHORS = ['copilot', 'github-actions', 'dependabot', 'renovate', 'coderabbit', 'vercel', 'netlify', 'codecov'];
+
+function isAIAuthor(login: string): boolean {
+  const lower = login.toLowerCase();
+  return AI_AUTHORS.some(ai => lower.includes(ai)) || lower.endsWith('[bot]') || lower.endsWith('-bot');
+}
+
+function PRReviewPanel({ pr, formatRelativeTime }: PRReviewPanelProps) {
+  const [activeTab, setActiveTab] = useState<PRTab>('conversation');
+  const [prDetail, setPrDetail] = useState<PRDetail | null>(null);
+  const [reviewComments, setReviewComments] = useState<PRReviewComment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  const [fileDiff, setFileDiff] = useState<string | null>(null);
+  const [loadingDiff, setLoadingDiff] = useState(false);
+  const [showAIComments, setShowAIComments] = useState(true);
+
+  // Load full PR details
+  useEffect(() => {
+    const loadPRDetail = async () => {
+      setLoading(true);
+      try {
+        const [detail, comments] = await Promise.all([
+          window.electronAPI.getPRDetail(pr.number),
+          window.electronAPI.getPRReviewComments(pr.number),
+        ]);
+        setPrDetail(detail);
+        setReviewComments(comments);
+      } catch (error) {
+        console.error('Error loading PR detail:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadPRDetail();
+  }, [pr.number]);
+
+  // Load file diff when selected
+  useEffect(() => {
+    if (!selectedFile) {
+      setFileDiff(null);
+      return;
+    }
+
+    const loadDiff = async () => {
+      setLoadingDiff(true);
+      try {
+        const diff = await window.electronAPI.getPRFileDiff(pr.number, selectedFile);
+        setFileDiff(diff);
+      } catch (error) {
+        setFileDiff(null);
+      } finally {
+        setLoadingDiff(false);
+      }
+    };
+
+    loadDiff();
+  }, [pr.number, selectedFile]);
+
+  // Filter comments by AI/human
+  const filteredComments = useMemo(() => {
+    if (!prDetail) return [];
+    if (showAIComments) return prDetail.comments;
+    return prDetail.comments.filter(c => !isAIAuthor(c.author.login));
+  }, [prDetail, showAIComments]);
+
+  const filteredReviews = useMemo(() => {
+    if (!prDetail) return [];
+    if (showAIComments) return prDetail.reviews;
+    return prDetail.reviews.filter(r => !isAIAuthor(r.author.login));
+  }, [prDetail, showAIComments]);
+
+  // Count AI vs human comments
+  const aiCommentCount = useMemo(() => {
+    if (!prDetail) return 0;
+    return prDetail.comments.filter(c => isAIAuthor(c.author.login)).length +
+           prDetail.reviews.filter(r => isAIAuthor(r.author.login)).length;
+  }, [prDetail]);
+
+  const humanCommentCount = useMemo(() => {
+    if (!prDetail) return 0;
+    return prDetail.comments.filter(c => !isAIAuthor(c.author.login)).length +
+           prDetail.reviews.filter(r => !isAIAuthor(r.author.login)).length;
+  }, [prDetail]);
+
+  // Get review comments for a specific file
+  const getFileComments = (filePath: string) => {
+    return reviewComments.filter(c => c.path === filePath);
+  };
+
+  // Get review state badge
+  const getReviewStateBadge = (state: string) => {
+    switch (state) {
+      case 'APPROVED':
+        return <span className="pr-review-badge approved">Approved</span>;
+      case 'CHANGES_REQUESTED':
+        return <span className="pr-review-badge changes">Changes Requested</span>;
+      case 'COMMENTED':
+        return <span className="pr-review-badge commented">Commented</span>;
+      case 'DISMISSED':
+        return <span className="pr-review-badge dismissed">Dismissed</span>;
+      default:
+        return null;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="pr-review-panel">
+        <div className="pr-review-loading">Loading PR details...</div>
+      </div>
+    );
+  }
+
+  if (!prDetail) {
+    return (
+      <div className="pr-review-panel">
+        <div className="pr-review-error">Could not load PR details</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="pr-review-panel">
+      {/* Header */}
+      <div className="pr-review-header">
+        <div className="pr-review-title-row">
+          <h3 className="pr-review-title">#{pr.number} {prDetail.title}</h3>
+          {prDetail.reviewDecision && getReviewStateBadge(prDetail.reviewDecision)}
+        </div>
+        <div className="pr-review-meta">
+          <span className="pr-review-branch">
+            <code>{prDetail.headRefName}</code>
+            <span className="pr-arrow">→</span>
+            <code>{prDetail.baseRefName}</code>
+          </span>
+          <span className="pr-review-author">@{prDetail.author.login}</span>
+          <span className="pr-review-time">{formatRelativeTime(prDetail.updatedAt)}</span>
+          <span className="pr-review-stats">
+            <span className="diff-additions">+{prDetail.additions}</span>
+            <span className="diff-deletions">-{prDetail.deletions}</span>
+          </span>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div className="pr-review-tabs">
+        <button 
+          className={`pr-tab ${activeTab === 'conversation' ? 'active' : ''}`}
+          onClick={() => setActiveTab('conversation')}
+        >
+          Conversation
+          <span className="pr-tab-count">{filteredComments.length + filteredReviews.length}</span>
+        </button>
+        <button 
+          className={`pr-tab ${activeTab === 'files' ? 'active' : ''}`}
+          onClick={() => setActiveTab('files')}
+        >
+          Files
+          <span className="pr-tab-count">{prDetail.files.length}</span>
+        </button>
+        <button 
+          className={`pr-tab ${activeTab === 'commits' ? 'active' : ''}`}
+          onClick={() => setActiveTab('commits')}
+        >
+          Commits
+          <span className="pr-tab-count">{prDetail.commits.length}</span>
+        </button>
+      </div>
+
+      {/* Tab Content */}
+      <div className="pr-review-content">
+        {/* Conversation Tab */}
+        {activeTab === 'conversation' && (
+          <div className="pr-conversation">
+            {/* AI Filter Toggle */}
+            <div className="pr-filter-bar">
+              <label className="pr-filter-toggle">
+                <input 
+                  type="checkbox" 
+                  checked={showAIComments} 
+                  onChange={(e) => setShowAIComments(e.target.checked)}
+                />
+                <span>Show AI comments</span>
+              </label>
+              <span className="pr-filter-counts">
+                <span className="human-count">👤 {humanCommentCount}</span>
+                <span className="ai-count">🤖 {aiCommentCount}</span>
+              </span>
+            </div>
+
+            {/* PR Body */}
+            {prDetail.body && (
+              <div className="pr-comment pr-body">
+                <div className="pr-comment-header">
+                  <span className="pr-comment-author">@{prDetail.author.login}</span>
+                  <span className="pr-comment-time">{formatRelativeTime(prDetail.createdAt)}</span>
+                </div>
+                <div className="pr-comment-body">{prDetail.body}</div>
+              </div>
+            )}
+
+            {/* Reviews and Comments (chronological) */}
+            {[...filteredReviews, ...filteredComments]
+              .sort((a, b) => {
+                const dateA = new Date('submittedAt' in a ? a.submittedAt : a.createdAt);
+                const dateB = new Date('submittedAt' in b ? b.submittedAt : b.createdAt);
+                return dateA.getTime() - dateB.getTime();
+              })
+              .map((item, idx) => {
+                const isReview = 'state' in item;
+                const author = item.author.login;
+                const isAI = isAIAuthor(author);
+                const date = isReview ? (item as any).submittedAt : (item as any).createdAt;
+
+                return (
+                  <div key={idx} className={`pr-comment ${isAI ? 'ai-comment' : ''} ${isReview ? 'pr-review' : ''}`}>
+                    <div className="pr-comment-header">
+                      <span className="pr-comment-author">
+                        {isAI && <span className="ai-badge">🤖</span>}
+                        @{author}
+                      </span>
+                      {isReview && getReviewStateBadge((item as any).state)}
+                      <span className="pr-comment-time">{formatRelativeTime(date)}</span>
+                    </div>
+                    {item.body && <div className="pr-comment-body">{item.body}</div>}
+                  </div>
+                );
+              })}
+
+            {filteredComments.length === 0 && filteredReviews.length === 0 && !prDetail.body && (
+              <div className="pr-empty">No comments yet</div>
+            )}
+          </div>
+        )}
+
+        {/* Files Tab */}
+        {activeTab === 'files' && (
+          <div className="pr-files">
+            <div className="pr-files-list">
+              {prDetail.files.map((file) => {
+                const fileComments = getFileComments(file.path);
+                return (
+                  <div 
+                    key={file.path}
+                    className={`pr-file-item ${selectedFile === file.path ? 'selected' : ''}`}
+                    onClick={() => setSelectedFile(file.path)}
+                  >
+                    <span className="pr-file-path">{file.path}</span>
+                    <span className="pr-file-stats">
+                      <span className="diff-additions">+{file.additions}</span>
+                      <span className="diff-deletions">-{file.deletions}</span>
+                      {fileComments.length > 0 && (
+                        <span className="pr-file-comments">💬 {fileComments.length}</span>
+                      )}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* File Diff Preview */}
+            {selectedFile && (
+              <div className="pr-file-diff">
+                <div className="pr-file-diff-header">
+                  <span>{selectedFile}</span>
+                  <a 
+                    href={`${pr.url}/files#diff-${selectedFile.replace(/[^a-zA-Z0-9]/g, '')}`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      window.electronAPI.openPullRequest(`${pr.url}/files`);
+                    }}
+                    className="pr-view-on-github"
+                  >
+                    View on GitHub
+                  </a>
+                </div>
+                <div className="pr-file-diff-content">
+                  {loadingDiff ? (
+                    <div className="pr-diff-loading">Loading diff...</div>
+                  ) : fileDiff ? (
+                    <pre className="pr-diff-code">{fileDiff}</pre>
+                  ) : (
+                    <div className="pr-diff-empty">Could not load diff</div>
+                  )}
+                </div>
+
+                {/* Inline Review Comments */}
+                {getFileComments(selectedFile).length > 0 && (
+                  <div className="pr-inline-comments">
+                    <div className="pr-inline-comments-header">
+                      💬 Review Comments ({getFileComments(selectedFile).length})
+                    </div>
+                    {getFileComments(selectedFile).map((comment) => (
+                      <div key={comment.id} className={`pr-inline-comment ${isAIAuthor(comment.author.login) ? 'ai-comment' : ''}`}>
+                        <div className="pr-inline-comment-header">
+                          <span className="pr-comment-author">
+                            {isAIAuthor(comment.author.login) && <span className="ai-badge">🤖</span>}
+                            @{comment.author.login}
+                          </span>
+                          {comment.line && <span className="pr-comment-line">Line {comment.line}</span>}
+                          <span className="pr-comment-time">{formatRelativeTime(comment.createdAt)}</span>
+                        </div>
+                        <div className="pr-inline-comment-body">{comment.body}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Commits Tab */}
+        {activeTab === 'commits' && (
+          <div className="pr-commits">
+            {prDetail.commits.map((commit) => (
+              <div key={commit.oid} className="pr-commit-item">
+                <code className="pr-commit-hash">{commit.oid.slice(0, 7)}</code>
+                <span className="pr-commit-message">{commit.messageHeadline}</span>
+                <span className="pr-commit-author">{commit.author.name}</span>
+                <span className="pr-commit-time">{formatRelativeTime(commit.committedDate)}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Footer with GitHub link */}
+      <div className="pr-review-footer">
+        <button 
+          className="btn btn-secondary"
+          onClick={() => window.electronAPI.openPullRequest(pr.url)}
+        >
+          Open on GitHub
+        </button>
       </div>
     </div>
   );
