@@ -10,3 +10,6 @@ export type { DiffPanelProps } from './DiffPanel'
 
 export { StagingPanel } from './StagingPanel'
 export type { StagingPanelProps } from './StagingPanel'
+
+export { BranchDetailPanel } from './BranchDetailPanel'
+export type { BranchDetailPanelProps } from './BranchDetailPanel'
