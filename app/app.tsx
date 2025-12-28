@@ -652,6 +652,26 @@ export default function App() {
     }
   }
 
+  // Pull local branch from remote
+  const handleLocalBranchPull = async (branch: Branch) => {
+    closeContextMenu()
+    setStatus({ type: 'info', message: `Pulling ${branch.name} from remote...` })
+
+    try {
+      // Construct the remote branch path (assumes origin as default remote)
+      const remoteBranch = `origin/${branch.name}`
+      const result = await window.electronAPI.pullBranch(remoteBranch)
+      if (result.success) {
+        setStatus({ type: 'success', message: result.message })
+        await refresh()
+      } else {
+        setStatus({ type: 'error', message: result.message })
+      }
+    } catch (err) {
+      setStatus({ type: 'error', message: (err as Error).message })
+    }
+  }
+
   // Remote branch context menu actions
   const handleRemoteBranchPull = async (branch: Branch) => {
     closeContextMenu()
@@ -791,6 +811,7 @@ export default function App() {
             action: () => handleLocalBranchSwitch(branch),
             disabled: branch.current || switching,
           },
+          { label: 'Pull from Remote', action: () => handleLocalBranchPull(branch) },
           { label: 'Push to Remote', action: () => handleLocalBranchPush(branch) },
         ]
       }
@@ -3607,19 +3628,27 @@ function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatusChange 
     }
   }
 
-  // Pull then commit
+  // Pull then commit (aborts if conflicts arise)
   const handlePullThenCommit = async () => {
     setIsPulling(true)
     onStatusChange({ type: 'info', message: 'Pulling latest changes...' })
 
     try {
       const pullResult = await window.electronAPI.pullCurrentBranch()
-      if (pullResult.success) {
+      if (pullResult.success && !pullResult.hadConflicts) {
         onStatusChange({ type: 'success', message: pullResult.message })
         setBehindPrompt(null)
         await onRefresh()
         // Now commit with force (we just pulled)
         await handleCommit(true)
+      } else if (pullResult.hadConflicts) {
+        // Pull succeeded but restoring local changes caused conflicts - don't commit!
+        onStatusChange({
+          type: 'error',
+          message: 'Pull & Commit aborted: conflicts detected. Please resolve them before committing.',
+        })
+        setBehindPrompt(null)
+        await onRefresh()
       } else {
         onStatusChange({ type: 'error', message: pullResult.message })
         setBehindPrompt(null)
@@ -3920,7 +3949,7 @@ function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatusChange 
                 {isPulling ? 'Pulling...' : 'Pull & Commit'}
               </button>
               <button className="btn btn-secondary" onClick={handleCommitAnyway} disabled={isPulling || isCommitting}>
-                Commit Ahead
+                Commit Anyway
               </button>
               <button
                 className="btn btn-ghost"

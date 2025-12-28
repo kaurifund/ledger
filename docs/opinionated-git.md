@@ -41,11 +41,11 @@ Pop stash to restore changes
 
 ---
 
-## Behind-Check Before Commit
+## Leapfrog Commit (Behind-Check Before Commit)
 
-**The Problem:** You stage changes and commit, only to realize origin has moved ahead. Now you need to pull, deal with merge commits, or rebase.
+**The Problem:** You stage changes and commit, only to realize origin has moved ahead. Now you need to pull, deal with merge commits, or rebase. Normal git just commits and leaves you to sort out the mess later.
 
-**Ledger's Solution:** Before committing, fetch and check if you're behind origin.
+**Ledger's Solution:** Before committing, fetch and check if you're behind origin. If so, offer to "leapfrog" over the incoming commits by pulling first, then committing on top.
 
 ```
 User clicks "Commit"
@@ -56,16 +56,18 @@ Are we behind? → Yes → Show prompt:
                         ┌─────────────────────────────────────┐
                         │ ⚠️ Origin has 3 new commits         │
                         │                                     │
-                        │ [Pull & Commit] [Commit Ahead] [X]  │
+                        │ [Pull & Commit] [Commit Anyway] [X] │
                         └─────────────────────────────────────┘
     ↓ No
 Commit normally
 ```
 
 **Options:**
-- **Pull & Commit** — Pull first (with auto-stash magic), then commit
-- **Commit Ahead** — Commit anyway, you'll deal with origin later
+- **Pull & Commit** (Leapfrog) — Pull first (with auto-stash magic), then commit on top of the latest
+- **Commit Anyway** — Commit behind origin (creates diverged history you'll need to reconcile later)
 - **Cancel** — Think about it
+
+**When it aborts:** If the pull causes conflicts with your uncommitted changes, the leapfrog aborts and asks you to resolve conflicts first. Your changes are preserved.
 
 **Implementation:** `commitChanges(message, description, force)` in `git-service.ts`
 
