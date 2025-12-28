@@ -994,7 +994,12 @@ export default function App() {
       case 'local-only':
         return branchList.filter((b) => b.isLocalOnly)
       case 'unmerged':
-        return branchList.filter((b) => !b.isMerged)
+        // Always include master/main even if merged (they're never really "merged away")
+        return branchList.filter((b) => {
+          const baseName = b.name.replace('remotes/', '').replace(/^origin\//, '')
+          const isMainBranch = baseName === 'main' || baseName === 'master'
+          return !b.isMerged || isMainBranch
+        })
       default:
         return branchList
     }
@@ -3993,6 +3998,7 @@ function PRReviewPanel({ pr, formatRelativeTime, onCheckout, switching }: PRRevi
   const [commentText, setCommentText] = useState('')
   const [submittingComment, setSubmittingComment] = useState(false)
   const [commentStatus, setCommentStatus] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [approvingPR, setApprovingPR] = useState(false)
 
   // Load full PR details
   const loadPRDetail = async () => {
@@ -4039,6 +4045,31 @@ function PRReviewPanel({ pr, formatRelativeTime, onCheckout, switching }: PRRevi
       setCommentStatus({ type: 'error', message: (error as Error).message })
     } finally {
       setSubmittingComment(false)
+    }
+  }
+
+  // Approve PR
+  const handleApprovePR = async () => {
+    if (approvingPR) return
+
+    setApprovingPR(true)
+    setCommentStatus(null)
+
+    try {
+      const result = await window.electronAPI.approvePR(pr.number)
+
+      if (result.success) {
+        setCommentStatus({ type: 'success', message: 'PR approved!' })
+        // Reload PR details to show updated review status
+        await loadPRDetail()
+        setTimeout(() => setCommentStatus(null), 3000)
+      } else {
+        setCommentStatus({ type: 'error', message: result.message })
+      }
+    } catch (error) {
+      setCommentStatus({ type: 'error', message: (error as Error).message })
+    } finally {
+      setApprovingPR(false)
     }
   }
 
@@ -4135,6 +4166,7 @@ function PRReviewPanel({ pr, formatRelativeTime, onCheckout, switching }: PRRevi
     <div className="pr-review-panel">
       {/* Header */}
       <div className="pr-review-header">
+        <div className="detail-type-badge">Pull Request</div>
         <div className="pr-review-title-row">
           <h3 className="pr-review-title">{prDetail.title}</h3>
           {prDetail.reviewDecision && getReviewStateBadge(prDetail.reviewDecision)}
@@ -4152,6 +4184,32 @@ function PRReviewPanel({ pr, formatRelativeTime, onCheckout, switching }: PRRevi
             <span className="diff-deletions">-{prDetail.deletions}</span>
           </span>
         </div>
+      </div>
+
+      {/* Actions */}
+      <div className="detail-actions">
+        {onCheckout && (
+          <button
+            className="btn btn-primary"
+            onClick={() => onCheckout(pr)}
+            disabled={switching}
+          >
+            {switching ? 'Checking out...' : 'Checkout Branch'}
+          </button>
+        )}
+        <button
+          className="btn btn-secondary"
+          onClick={() => window.electronAPI.openPullRequest(pr.url)}
+        >
+          View on GitHub
+        </button>
+        <button
+          className="btn btn-secondary"
+          onClick={handleApprovePR}
+          disabled={approvingPR || prDetail.reviewDecision === 'APPROVED'}
+        >
+          {approvingPR ? 'Approving...' : prDetail.reviewDecision === 'APPROVED' ? '✓ Approved' : 'Approve'}
+        </button>
       </div>
 
       {/* Tabs */}
@@ -4356,20 +4414,6 @@ function PRReviewPanel({ pr, formatRelativeTime, onCheckout, switching }: PRRevi
         )}
       </div>
 
-      {/* Footer with actions */}
-      <div className="pr-review-footer">
-        {onCheckout && (
-          <button className="btn btn-primary" onClick={() => onCheckout(pr)} disabled={switching}>
-            {switching ? 'Checking out...' : 'Checkout'}
-          </button>
-        )}
-        <button
-          className={`btn ${onCheckout ? 'btn-secondary' : 'btn-primary'}`}
-          onClick={() => window.electronAPI.openPullRequest(pr.url)}
-        >
-          Open in GitHub
-        </button>
-      </div>
     </div>
   )
 }

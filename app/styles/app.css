@@ -3161,6 +3161,13 @@ body,
   gap: 6px;
 }
 
+/* PR Panel Actions - add padding since pr-review-panel doesn't have parent padding */
+.pr-review-panel .detail-actions {
+  padding: 16px;
+  margin-top: 0;
+  border-top: none;
+}
+
 /* Tabs */
 .pr-review-tabs {
   display: flex;
@@ -3520,15 +3527,6 @@ body,
 .pr-commit-time {
   font-size: 11px;
   color: var(--text-muted);
-}
-
-/* Footer */
-.pr-review-footer {
-  padding: 12px 16px;
-  border-top: 1px solid var(--border);
-  background: var(--bg-primary);
-  display: flex;
-  justify-content: flex-end;
 }
 
 /* PR Comment Form */
