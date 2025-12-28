@@ -745,7 +745,8 @@ export default function App() {
           ]
         }
 
-        return [
+        // Different actions based on whether worktree has a branch
+        const actions: MenuItem[] = [
           {
             label: 'Open in Focus',
             action: () => {
@@ -753,18 +754,27 @@ export default function App() {
               handleRadarWorktreeClick(wt)
             },
           },
-          {
+        ]
+
+        if (wt.branch) {
+          // Worktree has a branch - offer to checkout
+          actions.push({
             label: 'Check Out Worktree',
             action: () => handleWorktreeDoubleClick(wt),
-            disabled: !wt.branch || wt.branch === currentBranch || switching,
-          },
-          {
-            label: 'Convert to Branch',
+            disabled: wt.branch === currentBranch || switching,
+          })
+        } else {
+          // Detached HEAD - offer to rescue with Create Branch
+          actions.push({
+            label: 'Create Branch (Rescue)',
             action: () => handleWorktreeConvertToBranch(wt),
             disabled: !hasChanges || switching,
-          },
-          { label: 'Open in Finder', action: () => handleWorktreeOpen(wt) },
-        ]
+          })
+        }
+
+        actions.push({ label: 'Open in Finder', action: () => handleWorktreeOpen(wt) })
+
+        return actions
       }
       case 'local-branch': {
         const branch = contextMenu.data as Branch
@@ -4536,9 +4546,12 @@ function WorktreeDetailPanel({
     )
   }
 
+  // Detached HEAD = no branch, needs rescue
+  const isDetached = !worktree.branch
+
   return (
     <div className="sidebar-detail-panel">
-      <div className="detail-type-badge">Worktree</div>
+      <div className="detail-type-badge">{isDetached ? 'Detached Worktree' : 'Worktree'}</div>
       <h3 className="detail-title">{worktree.branch || worktree.displayName}</h3>
       {worktree.branch && (
         <div className="detail-subtitle">{worktree.displayName}</div>
@@ -4556,7 +4569,7 @@ function WorktreeDetailPanel({
         </div>
         <div className="detail-meta-item">
           <span className="meta-label">Status</span>
-          <span className="meta-value">{isCurrent ? 'Current' : 'Not checked out'}</span>
+          <span className="meta-value">{isCurrent ? 'Current' : isDetached ? 'Detached HEAD' : 'Not checked out'}</span>
         </div>
         <div className="detail-meta-item">
           <span className="meta-label">Changes</span>
@@ -4579,8 +4592,35 @@ function WorktreeDetailPanel({
         </div>
       </div>
 
-      {/* Actions - matching stash panel layout */}
+      {/* Show WIP callout for worktrees with a branch and uncommitted changes */}
+      {worktree.branch && hasChanges && (
+        <div className="worktree-wip-callout">
+          <div className="wip-header">
+            <span className="wip-icon">✎</span>
+            <span className="wip-title">Uncommitted work on {worktree.branch}</span>
+          </div>
+          <p className="wip-description">
+            This worktree has changes ready to commit. Checkout to continue working, or apply the changes to your current branch.
+          </p>
+        </div>
+      )}
+
+      {/* Show rescue callout for detached worktrees with changes */}
+      {isDetached && hasChanges && (
+        <div className="worktree-rescue-callout">
+          <div className="rescue-header">
+            <span className="rescue-icon">⚠</span>
+            <span className="rescue-title">Orphaned changes (no branch)</span>
+          </div>
+          <p className="rescue-description">
+            This worktree is on a detached HEAD. Use "Create Branch" to rescue these changes into a proper branch.
+          </p>
+        </div>
+      )}
+
+      {/* Actions */}
       <div className="detail-actions worktree-actions">
+        {/* Checkout - only for worktrees with a branch, not current */}
         {!isCurrent && worktree.branch && onCheckoutWorktree && (
           <button
             className="btn btn-primary"
@@ -4590,25 +4630,33 @@ function WorktreeDetailPanel({
             {switching ? 'Checking out...' : 'Checkout'}
           </button>
         )}
+
+        {/* Create Branch - only for detached worktrees (rescue operation) */}
+        {isDetached && (
+          <button
+            className="btn btn-primary"
+            onClick={handleCreateBranch}
+            disabled={actionInProgress || !hasChanges}
+            title={hasChanges ? 'Rescue changes into a new branch' : 'No changes to rescue'}
+          >
+            Create Branch
+          </button>
+        )}
+
+        {/* Apply - available for all worktrees with changes */}
         <button
-          className={`btn ${isCurrent || !worktree.branch ? 'btn-primary' : 'btn-secondary'}`}
+          className="btn btn-secondary"
           onClick={handleApply}
           disabled={actionInProgress || !hasChanges}
           title={hasChanges ? 'Apply changes to main repo' : 'No changes to apply'}
         >
           Apply
         </button>
-        <button
-          className="btn btn-secondary"
-          onClick={handleCreateBranch}
-          disabled={actionInProgress || !hasChanges}
-          title={hasChanges ? 'Create a new branch with these changes' : 'No changes to convert'}
-        >
-          Create Branch
-        </button>
+
         <button className="btn btn-secondary" onClick={handleOpenInFinder} disabled={actionInProgress}>
           Open in Finder
         </button>
+
         {!isCurrent && (
           <button className="btn btn-secondary" onClick={() => handleRemove(false)} disabled={actionInProgress}>
             Remove
