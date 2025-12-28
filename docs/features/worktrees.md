@@ -6,6 +6,52 @@
 
 Git worktrees allow you to have multiple working directories from a single repository. Ledger enhances worktrees with automatic detection of AI agent workspaces (Cursor, Claude, Gemini), diff statistics, and smart display names.
 
+## Philosophy: Worktrees vs Branches
+
+### The Industry Problem
+
+AI coding tools like Cursor use worktrees as **the unit of work** — each agent IS a worktree. This creates several UX problems:
+
+| Cursor's Approach | Problem |
+|-------------------|---------|
+| **Auto-generated branch names** (`feat-1-98Zlw`) | Branches are disposable, not traceable |
+| **"Apply" button merges to main** | Bypasses PR review, drives toward unsafe patterns |
+| **Worktree = Agent lifetime** | When agent done, worktree gone — no durable artifact |
+| **Up to 20 ephemeral worktrees** | Cleanup by "oldest access time" loses work context |
+| **No LSP in worktrees** | Agents work without linting, catch errors late |
+
+The confusing "Apply" vs "Create PR" UX pushes users toward immediately applying changes to main rather than creating reviewable PRs. This works for trivial changes but breaks down for anything requiring review.
+
+### Conductor/Ledger's Philosophy
+
+**The branch is the unit of work. The worktree is temporary housing.**
+
+| Our Approach | Benefit |
+|--------------|---------|
+| **Meaningful branch names** (`peterjthomson/auth-fix`) | Work is traceable, searchable, reviewable |
+| **Aggressive branch creation** | Every agent task gets a named branch immediately |
+| **Standard git workflow** | Branch → PR → Review → Merge |
+| **Worktrees are disposable** | Branch survives worktree cleanup |
+| **"Convert to Branch" action** | Rescue orphaned worktree changes into proper branches |
+
+This means Ledger can serve as the **review layer** for work started in Cursor or other tools — taking their ephemeral worktrees and promoting them to proper, reviewable branches.
+
+### Workflow: Cursor → Ledger
+
+```
+Cursor creates worktree          Ledger promotes to branch
+        │                                │
+        ▼                                ▼
+┌───────────────────┐           ┌───────────────────┐
+│ ~/.cursor/worktrees/abc123 │   │ feature/auth-fix   │
+│ Branch: feat-1-98Zlw        │ → │ Meaningful name    │
+│ Changes: +42 -17            │   │ Ready for PR       │
+│ Status: orphaned            │   │ Full git history   │
+└───────────────────┘           └───────────────────┘
+```
+
+**Result**: Work that Cursor started can flow into proper code review without the "Apply to main" shortcut.
+
 ## Features
 
 ### Agent Detection
@@ -211,4 +257,96 @@ When a worktree is selected:
 - Diff stats require executing git in each worktree directory
 - Many worktrees (10+) may cause slight delay
 - Directory mtime used for sorting by recency
+
+---
+
+## Planned: Better Worktree Management
+
+Ledger aims to be the **review and promotion layer** for AI-generated work. These features will help bridge Cursor's ephemeral worktrees with proper git workflow:
+
+### 🔜 Worktree → Branch Promotion (Enhanced)
+
+Current "Convert to Branch" creates a patch and applies it. Enhanced version:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│ Promote Worktree to Branch                                  │
+├─────────────────────────────────────────────────────────────┤
+│                                                             │
+│ Source: Cursor 1: AuthController                            │
+│ Path: ~/.cursor/worktrees/abc123                            │
+│ Changes: +42 -17 across 3 files                             │
+│                                                             │
+│ Branch Name: [auth-controller-fix____________]              │
+│              (auto-suggested from context)                  │
+│                                                             │
+│ Base Branch: [main ▾]                                       │
+│                                                             │
+│ Options:                                                    │
+│   ☑ Create commit with AI-generated message                 │
+│   ☑ Open PR draft after creation                            │
+│   ☐ Delete worktree after promotion                         │
+│                                                             │
+│                        [Cancel]  [Promote to Branch]        │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### 🔜 Worktree Watcher
+
+Monitor AI tool worktree directories for changes:
+
+- **Auto-detect new worktrees**: When Cursor/Claude creates a worktree, show notification
+- **Stale worktree alerts**: Flag worktrees with changes >24h old that haven't been promoted
+- **Orphan detection**: Find worktrees whose branches were deleted or merged
+
+### 🔜 Batch Operations
+
+For users running multiple parallel agents:
+
+- **Promote all with changes**: Batch convert multiple worktrees to branches
+- **Compare worktrees**: Side-by-side diff of two worktrees solving same problem
+- **Best-of-N picker**: Choose best solution from parallel agent runs, promote to branch
+
+### 🔜 Cursor Integration
+
+Smooth handoff from Cursor to Ledger:
+
+- **"Open in Ledger" context menu** in Cursor worktree panel
+- **Worktree sync**: Show Ledger's branch name in Cursor's UI
+- **Bi-directional status**: See PR status for promoted worktrees
+
+### 🔜 Review Flow
+
+Turn Cursor's "Apply to main" impulse into proper review:
+
+```
+User clicks "Apply" in Cursor
+        │
+        ▼ (Ledger intercept - optional)
+┌─────────────────────────────────────────────────────────────┐
+│ This worktree has 127 lines of changes.                     │
+│                                                             │
+│ Would you like to:                                          │
+│                                                             │
+│   [Apply to main]     ← Cursor's default (risky)            │
+│   [Create PR]         ← Ledger's recommended flow           │
+│   [Review in Ledger]  ← Open diff viewer first              │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why This Matters
+
+Cursor optimizes for **speed** — get code written fast, apply it fast.
+
+Ledger optimizes for **durability** — make sure work is reviewable, traceable, and recoverable.
+
+By serving as the bridge, Ledger lets teams benefit from AI coding speed while maintaining proper git hygiene:
+
+| Without Ledger | With Ledger |
+|----------------|-------------|
+| Agent work → Apply → main | Agent work → Branch → PR → Review → main |
+| Disposable worktrees | Promoted, named branches |
+| "What did the AI change?" | Full commit history |
+| Lost parallel attempts | Compare & pick best solution |
 
