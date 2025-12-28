@@ -20,41 +20,20 @@ import type {
   StashFile,
   BranchDiff,
 } from './types/electron'
+import type {
+  ViewMode,
+  MainPanelView,
+  StatusMessage,
+  ContextMenuType,
+  ContextMenu,
+  MenuItem,
+  SidebarFocusType,
+  SidebarFocus,
+} from './types/app-types'
 import './styles/app.css'
 import { useWindowContext } from './components/window'
 import { SettingsPanel } from './components/SettingsPanel'
 import { initializeTheme, setThemeMode as applyThemeMode, getCurrentThemeMode, loadVSCodeTheme, type ThemeMode } from './theme'
-
-type ViewMode = 'radar' | 'focus'
-type MainPanelView = 'history' | 'settings'
-
-interface StatusMessage {
-  type: 'success' | 'error' | 'info'
-  message: string
-  stashed?: string
-}
-
-type ContextMenuType = 'pr' | 'worktree' | 'local-branch' | 'remote-branch' | 'commit' | 'uncommitted'
-
-interface ContextMenu {
-  type: ContextMenuType
-  x: number
-  y: number
-  data: PullRequest | Worktree | Branch | Commit | WorkingStatus
-}
-
-interface MenuItem {
-  label: string
-  action: () => void
-  disabled?: boolean
-}
-
-type SidebarFocusType = 'pr' | 'branch' | 'remote' | 'worktree' | 'stash' | 'uncommitted' | 'create-worktree'
-
-interface SidebarFocus {
-  type: SidebarFocusType
-  data: PullRequest | Branch | Worktree | StashEntry | WorkingStatus | null
-}
 
 export default function App() {
   const [repoPath, setRepoPath] = useState<string | null>(null)
