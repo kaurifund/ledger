@@ -104,7 +104,7 @@ export default function App() {
   })
 
   // Filter and sort state
-  const [localFilter, setLocalFilter] = useState<BranchFilte>('all')
+  const [localFilter, setLocalFilter] = useState<BranchFilter>('all')
   const [localSort, setLocalSort] = useState<BranchSort>('name')
   const [remoteFilter, setRemoteFilter] = useState<BranchFilter>('all')
   const [remoteSort, setRemoteSort] = useState<BranchSort>('name')
@@ -2684,4 +2684,3 @@ export default function App() {
     </div>
   )
 }
-
