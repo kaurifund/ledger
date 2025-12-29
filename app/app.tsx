@@ -1936,7 +1936,7 @@ export default function App() {
                   <div
                     key={commit.hash}
                     className={`commit-item ${commit.isMerge ? 'merge' : ''} ${switching ? 'disabled' : ''}`}
-                    onDoubleClick={() => handleCommitDoubleClick(commit)}
+                    onDoubleClick={() => handleRadarCommitClick(commit)}
                     onContextMenu={(e) => handleContextMenu(e, 'commit', commit)}
                   >
                     <div className="commit-message" title={commit.message}>

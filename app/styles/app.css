@@ -1870,21 +1870,8 @@ body,
   cursor: text;
 }
 
-/* Copyable text in various places */
+/* Copyable text - only in detail panels, not in list items */
 .copyable-text {
-  user-select: text;
-  cursor: text;
-}
-
-.pr-review-title,
-.pr-commit-message,
-.pr-commit-hash,
-.pr-file-path,
-.stash-title,
-.stash-file-path,
-.diff-file-path,
-.commit-message,
-.commit-hash {
   user-select: text;
   cursor: text;
 }
@@ -2160,12 +2147,6 @@ body,
   gap: 10px;
 }
 
-.staging-keyboard-hint {
-  font-size: 10px;
-  color: var(--text-muted);
-  margin-top: 6px;
-}
-
 .staging-stats {
   font-size: 11px;
 }
@@ -2246,18 +2227,8 @@ body,
   background: var(--accent-glow);
 }
 
-.staging-file-item.focused {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
-}
-
 .staging-files:focus {
   outline: none;
-}
-
-.staging-files:focus-visible .staging-file-item.focused {
-  outline: 2px solid var(--accent);
-  outline-offset: -2px;
 }
 
 .staging-file-item .file-status-icon {
@@ -2576,36 +2547,6 @@ body,
 .branch-preview code {
   color: var(--accent);
   font-weight: 500;
-}
-
-/* Branch name suggestion button */
-.branch-suggest-btn {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  font-size: 11px;
-  color: var(--accent);
-  background: var(--accent-glow);
-  border: 1px solid var(--accent);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  transition: all 0.15s ease;
-  width: 100%;
-  text-align: left;
-}
-
-.branch-suggest-btn:hover {
-  background: var(--accent);
-  color: white;
-}
-
-.branch-suggest-btn code {
-  font-family: 'JetBrains Mono', 'SF Mono', Monaco, monospace;
-  font-size: 10px;
-  padding: 1px 4px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
 }
 
 .commit-option-checkbox input[type='checkbox'] {
@@ -5131,10 +5072,6 @@ body,
   /* Compact staging panel */
   .staging-commit {
     padding: 8px 12px;
-  }
-
-  .staging-keyboard-hint {
-    display: none;
   }
 }
 

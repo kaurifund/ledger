@@ -46,8 +46,6 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
   const [fileContextMenu, setFileContextMenu] = useState<{ x: number; y: number; file: UncommittedFile } | null>(null)
   const fileMenuRef = useRef<HTMLDivElement>(null)
   const fileListRef = useRef<HTMLDivElement>(null)
-  const [focusedFileIndex, setFocusedFileIndex] = useState<number>(-1)
-  const [focusedSection, setFocusedSection] = useState<'staged' | 'unstaged' | null>(null)
   // New branch creation
   const [createNewBranch, setCreateNewBranch] = useState(false)
   const [branchFolder, setBranchFolder] = useState<string>('feature')
@@ -74,76 +72,37 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
   const handleFileListKeyDown = useCallback((e: React.KeyboardEvent) => {
     if (allFiles.length === 0) return
 
-    const currentSection = focusedSection
-    const currentFiles = currentSection === 'staged' ? stagedFiles : unstagedFiles
+    const currentIndex = selectedFile ? allFiles.findIndex(f => f.path === selectedFile.path && f.staged === selectedFile.staged) : -1
     
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault()
-        if (focusedFileIndex === -1) {
-          // Start with first file in staged section if it has files, else unstaged
-          if (stagedFiles.length > 0) {
-            setFocusedSection('staged')
-            setFocusedFileIndex(0)
-          } else if (unstagedFiles.length > 0) {
-            setFocusedSection('unstaged')
-            setFocusedFileIndex(0)
-          }
-        } else if (currentSection === 'staged' && focusedFileIndex >= stagedFiles.length - 1) {
-          // Move to unstaged section
-          if (unstagedFiles.length > 0) {
-            setFocusedSection('unstaged')
-            setFocusedFileIndex(0)
-          }
-        } else if (currentSection === 'unstaged' && focusedFileIndex >= unstagedFiles.length - 1) {
-          // Stay at last item
-        } else {
-          setFocusedFileIndex(prev => prev + 1)
+        if (currentIndex < allFiles.length - 1) {
+          setSelectedFile(allFiles[currentIndex + 1])
+        } else if (currentIndex === -1 && allFiles.length > 0) {
+          setSelectedFile(allFiles[0])
         }
         break
       case 'ArrowUp':
         e.preventDefault()
-        if (focusedFileIndex === -1) {
-          // Start with last file
-          if (unstagedFiles.length > 0) {
-            setFocusedSection('unstaged')
-            setFocusedFileIndex(unstagedFiles.length - 1)
-          } else if (stagedFiles.length > 0) {
-            setFocusedSection('staged')
-            setFocusedFileIndex(stagedFiles.length - 1)
-          }
-        } else if (currentSection === 'unstaged' && focusedFileIndex === 0) {
-          // Move to staged section
-          if (stagedFiles.length > 0) {
-            setFocusedSection('staged')
-            setFocusedFileIndex(stagedFiles.length - 1)
-          }
-        } else if (currentSection === 'staged' && focusedFileIndex === 0) {
-          // Stay at first item
-        } else {
-          setFocusedFileIndex(prev => prev - 1)
+        if (currentIndex > 0) {
+          setSelectedFile(allFiles[currentIndex - 1])
+        } else if (currentIndex === -1 && allFiles.length > 0) {
+          setSelectedFile(allFiles[allFiles.length - 1])
         }
         break
       case ' ':
-      case 'Spacebar':
         e.preventDefault()
-        if (focusedFileIndex >= 0 && focusedFileIndex < currentFiles.length) {
-          const file = currentFiles[focusedFileIndex]
-          if (file.staged) {
-            handleUnstageFile(file)
+        if (selectedFile) {
+          if (selectedFile.staged) {
+            handleUnstageFile(selectedFile)
           } else {
-            handleStageFile(file)
+            handleStageFile(selectedFile)
           }
         }
         break
-      case 'Enter':
-        e.preventDefault()
-        if (focusedFileIndex >= 0 && focusedFileIndex < currentFiles.length) {
-          setSelectedFile(currentFiles[focusedFileIndex])
-        }
-        break
     }
-  }, [focusedFileIndex, focusedSection, stagedFiles, unstagedFiles, allFiles])
+  }, [allFiles, selectedFile])
 
 
   // Close file context menu when clicking outside
@@ -197,7 +156,6 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
   const handleStageFile = async (file: UncommittedFile) => {
     const result = await window.electronAPI.stageFile(file.path)
     if (result.success) {
-      onStatusChange({ type: 'success', message: result.message })
       await onRefresh()
     } else {
       onStatusChange({ type: 'error', message: result.message })
@@ -208,7 +166,6 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
   const handleUnstageFile = async (file: UncommittedFile) => {
     const result = await window.electronAPI.unstageFile(file.path)
     if (result.success) {
-      onStatusChange({ type: 'success', message: result.message })
       await onRefresh()
     } else {
       onStatusChange({ type: 'error', message: result.message })
@@ -260,7 +217,9 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
 
   // Get the effective folder name (custom or preset)
   const effectiveFolder = branchFolder === 'custom' ? customFolder.trim() : branchFolder
-  const fullBranchName = createNewBranch && branchName.trim() ? `${effectiveFolder}/${branchName.trim()}` : null
+  // Use explicit branch name, or fall back to suggested name from commit message
+  const effectiveBranchName = branchName.trim() || suggestedBranchName
+  const fullBranchName = createNewBranch && effectiveBranchName ? `${effectiveFolder}/${effectiveBranchName}` : null
 
   // Commit with optional force to skip behind-check
   const handleCommit = async (force: boolean = false) => {
@@ -468,7 +427,6 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
             <span className="diff-deletions">-{workingStatus.deletions}</span>
           </span>
         </div>
-        <div className="staging-keyboard-hint">↑↓ navigate · Space stage/unstage · Enter view</div>
       </div>
 
       {/* File Lists */}
@@ -491,10 +449,10 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
           </div>
           {stagedFiles.length > 0 ? (
             <ul className="staging-file-list">
-              {stagedFiles.map((file, index) => (
+              {stagedFiles.map((file) => (
                 <li
                   key={file.path}
-                  className={`staging-file-item ${getFileStatusClass(file.status)} ${selectedFile?.path === file.path && selectedFile.staged ? 'selected' : ''} ${focusedSection === 'staged' && focusedFileIndex === index ? 'focused' : ''}`}
+                  className={`staging-file-item ${getFileStatusClass(file.status)} ${selectedFile?.path === file.path && selectedFile.staged ? 'selected' : ''}`}
                   onClick={() => setSelectedFile(file)}
                 >
                   <span className="file-status-icon">{getFileStatusIcon(file.status)}</span>
@@ -507,7 +465,7 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
                       e.stopPropagation()
                       handleUnstageFile(file)
                     }}
-                    title="Unstage file (Space)"
+                    title="Unstage file"
                   >
                     −
                   </button>
@@ -532,10 +490,10 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
           </div>
           {unstagedFiles.length > 0 ? (
             <ul className="staging-file-list">
-              {unstagedFiles.map((file, index) => (
+              {unstagedFiles.map((file) => (
                 <li
                   key={file.path}
-                  className={`staging-file-item ${getFileStatusClass(file.status)} ${selectedFile?.path === file.path && !selectedFile.staged ? 'selected' : ''} ${focusedSection === 'unstaged' && focusedFileIndex === index ? 'focused' : ''}`}
+                  className={`staging-file-item ${getFileStatusClass(file.status)} ${selectedFile?.path === file.path && !selectedFile.staged ? 'selected' : ''}`}
                   onClick={() => setSelectedFile(file)}
                   onContextMenu={(e) => handleFileContextMenu(e, file)}
                 >
@@ -549,7 +507,7 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
                       e.stopPropagation()
                       handleStageFile(file)
                     }}
-                    title="Stage file (Space)"
+                    title="Stage file"
                   >
                     ✓
                   </button>
@@ -683,17 +641,6 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
                 onChange={(e) => setBranchName(e.target.value.replace(/[^a-zA-Z0-9-_]/g, ''))}
               />
             </div>
-            {/* Branch name suggestion from commit message */}
-            {suggestedBranchName && !branchName && (
-              <button
-                type="button"
-                className="branch-suggest-btn"
-                onClick={() => setBranchName(suggestedBranchName)}
-                title="Use commit message as branch name"
-              >
-                → Use "<code>{suggestedBranchName}</code>"
-              </button>
-            )}
             {fullBranchName && (
               <div className="branch-preview">
                 → <code>{fullBranchName}</code>
@@ -777,7 +724,7 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
               !commitMessage.trim() ||
               stagedFiles.length === 0 ||
               isCommitting ||
-              (createNewBranch && !branchName.trim()) ||
+              (createNewBranch && !effectiveBranchName) ||
               (createNewBranch && branchFolder === 'custom' && !customFolder.trim())
             }
           >
