@@ -40,7 +40,7 @@ const electronAPI = {
   getCommitGraphHistory: (limit?: number, skipStats?: boolean, showCheckpoints?: boolean) =>
     ipcRenderer.invoke('get-commit-graph-history', limit, skipStats, showCheckpoints),
   getCommitDiff: (commitHash: string) => ipcRenderer.invoke('get-commit-diff', commitHash),
-  getBranchDiff: (branchName: string) => ipcRenderer.invoke('get-branch-diff', branchName),
+  getBranchDiff: (branchName: string, diffType?: 'diff' | 'changes') => ipcRenderer.invoke('get-branch-diff', branchName, diffType),
   getStashes: () => ipcRenderer.invoke('get-stashes'),
   getStashFiles: (stashIndex: number) => ipcRenderer.invoke('get-stash-files', stashIndex),
   getStashFileDiff: (stashIndex: number, filePath: string) =>
