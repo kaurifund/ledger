@@ -53,6 +53,15 @@ import {
   getFileDiff,
   commitChanges,
   pullCurrentBranch,
+  // Worktree-specific staging & commit APIs
+  getWorktreeWorkingStatus,
+  stageFileInWorktree,
+  unstageFileInWorktree,
+  stageAllInWorktree,
+  unstageAllInWorktree,
+  getFileDiffInWorktree,
+  commitInWorktree,
+  pushWorktreeBranch,
   // PR Review APIs
   getPRDetail,
   getPRReviewComments,
@@ -70,6 +79,14 @@ import {
   loadBuiltInTheme,
   clearCustomTheme,
   mapVSCodeThemeToCSS,
+  // Canvas functions
+  getCanvases,
+  saveCanvases,
+  getActiveCanvasId,
+  saveActiveCanvasId,
+  addCanvas,
+  removeCanvas,
+  updateCanvas,
 } from './settings-service'
 
 // Check for --repo command line argument (for testing)
@@ -235,8 +252,8 @@ app.whenReady().then(() => {
     return await pullBranch(remoteBranch)
   })
 
-  ipcMain.handle('checkout-pr-branch', async (_, branchName: string) => {
-    return await checkoutPRBranch(branchName)
+  ipcMain.handle('checkout-pr-branch', async (_, prNumber: number) => {
+    return await checkoutPRBranch(prNumber)
   })
 
   ipcMain.handle('get-commit-history', async (_, limit?: number) => {
@@ -318,6 +335,71 @@ app.whenReady().then(() => {
   ipcMain.handle('create-worktree', async (_, options: { branchName: string; isNewBranch: boolean; folderPath: string }) => {
     try {
       return await createWorktree(options)
+    } catch (error) {
+      return { success: false, message: (error as Error).message }
+    }
+  })
+
+  // Worktree-specific staging & commit handlers
+  ipcMain.handle('get-worktree-working-status', async (_, worktreePath: string) => {
+    try {
+      return await getWorktreeWorkingStatus(worktreePath)
+    } catch (_error) {
+      return { hasChanges: false, files: [], stagedCount: 0, unstagedCount: 0, additions: 0, deletions: 0 }
+    }
+  })
+
+  ipcMain.handle('stage-file-in-worktree', async (_, worktreePath: string, filePath: string) => {
+    try {
+      return await stageFileInWorktree(worktreePath, filePath)
+    } catch (error) {
+      return { success: false, message: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('unstage-file-in-worktree', async (_, worktreePath: string, filePath: string) => {
+    try {
+      return await unstageFileInWorktree(worktreePath, filePath)
+    } catch (error) {
+      return { success: false, message: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('stage-all-in-worktree', async (_, worktreePath: string) => {
+    try {
+      return await stageAllInWorktree(worktreePath)
+    } catch (error) {
+      return { success: false, message: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('unstage-all-in-worktree', async (_, worktreePath: string) => {
+    try {
+      return await unstageAllInWorktree(worktreePath)
+    } catch (error) {
+      return { success: false, message: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('get-file-diff-in-worktree', async (_, worktreePath: string, filePath: string, staged: boolean) => {
+    try {
+      return await getFileDiffInWorktree(worktreePath, filePath, staged)
+    } catch (_error) {
+      return null
+    }
+  })
+
+  ipcMain.handle('commit-in-worktree', async (_, worktreePath: string, message: string, description?: string) => {
+    try {
+      return await commitInWorktree(worktreePath, message, description)
+    } catch (error) {
+      return { success: false, message: (error as Error).message }
+    }
+  })
+
+  ipcMain.handle('push-worktree-branch', async (_, worktreePath: string) => {
+    try {
+      return await pushWorktreeBranch(worktreePath)
     } catch (error) {
       return { success: false, message: (error as Error).message }
     }
@@ -557,6 +639,40 @@ app.whenReady().then(() => {
       }
     }
     return null
+  })
+
+  // Canvas handlers
+  ipcMain.handle('get-canvases', () => {
+    return getCanvases()
+  })
+
+  ipcMain.handle('save-canvases', (_event, canvases: unknown[]) => {
+    saveCanvases(canvases as any)
+    return { success: true }
+  })
+
+  ipcMain.handle('get-active-canvas-id', () => {
+    return getActiveCanvasId()
+  })
+
+  ipcMain.handle('save-active-canvas-id', (_event, canvasId: string) => {
+    saveActiveCanvasId(canvasId)
+    return { success: true }
+  })
+
+  ipcMain.handle('add-canvas', (_event, canvas: unknown) => {
+    addCanvas(canvas as any)
+    return { success: true }
+  })
+
+  ipcMain.handle('remove-canvas', (_event, canvasId: string) => {
+    removeCanvas(canvasId)
+    return { success: true }
+  })
+
+  ipcMain.handle('update-canvas', (_event, canvasId: string, updates: unknown) => {
+    updateCanvas(canvasId, updates as any)
+    return { success: true }
   })
 
   // Set app user model id for windows

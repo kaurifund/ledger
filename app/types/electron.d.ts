@@ -313,13 +313,15 @@ export interface ElectronAPI {
     draft?: boolean
     web?: boolean
   }) => Promise<{ success: boolean; message: string; url?: string }>
-  checkoutPRBranch: (branchName: string) => Promise<CheckoutResult>
+  checkoutPRBranch: (prNumber: number) => Promise<CheckoutResult>
   // Remote operations
   getGitHubUrl: () => Promise<string | null>
   openBranchInGitHub: (branchName: string) => Promise<{ success: boolean; message: string }>
   pullBranch: (remoteBranch: string) => Promise<{ success: boolean; message: string }>
   // Commit history and working status
   getCommitHistory: (limit?: number) => Promise<Commit[]>
+  getCommitHistoryForRef: (ref: string, limit?: number) => Promise<Commit[]>
+  getCommitDetails: (commitHash: string) => Promise<Commit | null>
   getWorkingStatus: () => Promise<WorkingStatus>
   // Reset operations
   resetToCommit: (commitHash: string, mode: 'soft' | 'mixed' | 'hard') => Promise<CheckoutResult>
@@ -341,6 +343,23 @@ export interface ElectronAPI {
   removeWorktree: (worktreePath: string, force?: boolean) => Promise<{ success: boolean; message: string }>
   createWorktree: (options: CreateWorktreeOptions) => Promise<{ success: boolean; message: string; path?: string }>
   selectWorktreeFolder: () => Promise<string | null>
+  // Worktree-specific staging & commit operations
+  getWorktreeWorkingStatus: (worktreePath: string) => Promise<WorkingStatus>
+  stageFileInWorktree: (worktreePath: string, filePath: string) => Promise<{ success: boolean; message: string }>
+  unstageFileInWorktree: (worktreePath: string, filePath: string) => Promise<{ success: boolean; message: string }>
+  stageAllInWorktree: (worktreePath: string) => Promise<{ success: boolean; message: string }>
+  unstageAllInWorktree: (worktreePath: string) => Promise<{ success: boolean; message: string }>
+  getFileDiffInWorktree: (
+    worktreePath: string,
+    filePath: string,
+    staged: boolean
+  ) => Promise<StagingFileDiff | null>
+  commitInWorktree: (
+    worktreePath: string,
+    message: string,
+    description?: string
+  ) => Promise<{ success: boolean; message: string }>
+  pushWorktreeBranch: (worktreePath: string) => Promise<{ success: boolean; message: string }>
   // Staging & commit operations
   stageFile: (filePath: string) => Promise<{ success: boolean; message: string }>
   unstageFile: (filePath: string) => Promise<{ success: boolean; message: string }>
@@ -397,6 +416,31 @@ export interface ElectronAPI {
     cssVars: Record<string, string>
   } | null>
   clearCustomTheme: () => Promise<{ success: boolean }>
+  // Canvas operations
+  getCanvases: () => Promise<CanvasConfig[]>
+  saveCanvases: (canvases: CanvasConfig[]) => Promise<{ success: boolean }>
+  getActiveCanvasId: () => Promise<string>
+  saveActiveCanvasId: (canvasId: string) => Promise<{ success: boolean }>
+  addCanvas: (canvas: CanvasConfig) => Promise<{ success: boolean }>
+  removeCanvas: (canvasId: string) => Promise<{ success: boolean }>
+  updateCanvas: (canvasId: string, updates: Partial<CanvasConfig>) => Promise<{ success: boolean }>
+}
+
+// Canvas configuration types for persistence
+interface CanvasColumnConfig {
+  id: string
+  slotType: 'list' | 'editor' | 'viz'
+  panel: string
+  width: number | 'flex'
+  minWidth?: number
+  config?: Record<string, unknown>
+}
+
+interface CanvasConfig {
+  id: string
+  name: string
+  columns: CanvasColumnConfig[]
+  isPreset?: boolean
 }
 
 declare global {

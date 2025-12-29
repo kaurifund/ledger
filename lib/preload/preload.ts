@@ -23,7 +23,7 @@ const electronAPI = {
   openPullRequest: (url: string) => ipcRenderer.invoke('open-pull-request', url),
   createPullRequest: (options: { title: string; body?: string; baseBranch?: string; draft?: boolean; web?: boolean }) =>
     ipcRenderer.invoke('create-pull-request', options),
-  checkoutPRBranch: (branchName: string) => ipcRenderer.invoke('checkout-pr-branch', branchName),
+  checkoutPRBranch: (prNumber: number) => ipcRenderer.invoke('checkout-pr-branch', prNumber),
   // Remote operations
   getGitHubUrl: () => ipcRenderer.invoke('get-github-url'),
   openBranchInGitHub: (branchName: string) => ipcRenderer.invoke('open-branch-in-github', branchName),
@@ -59,6 +59,19 @@ const electronAPI = {
   createWorktree: (options: { branchName: string; isNewBranch: boolean; folderPath: string }) =>
     ipcRenderer.invoke('create-worktree', options),
   selectWorktreeFolder: () => ipcRenderer.invoke('select-worktree-folder'),
+  // Worktree-specific staging & commit operations
+  getWorktreeWorkingStatus: (worktreePath: string) => ipcRenderer.invoke('get-worktree-working-status', worktreePath),
+  stageFileInWorktree: (worktreePath: string, filePath: string) =>
+    ipcRenderer.invoke('stage-file-in-worktree', worktreePath, filePath),
+  unstageFileInWorktree: (worktreePath: string, filePath: string) =>
+    ipcRenderer.invoke('unstage-file-in-worktree', worktreePath, filePath),
+  stageAllInWorktree: (worktreePath: string) => ipcRenderer.invoke('stage-all-in-worktree', worktreePath),
+  unstageAllInWorktree: (worktreePath: string) => ipcRenderer.invoke('unstage-all-in-worktree', worktreePath),
+  getFileDiffInWorktree: (worktreePath: string, filePath: string, staged: boolean) =>
+    ipcRenderer.invoke('get-file-diff-in-worktree', worktreePath, filePath, staged),
+  commitInWorktree: (worktreePath: string, message: string, description?: string) =>
+    ipcRenderer.invoke('commit-in-worktree', worktreePath, message, description),
+  pushWorktreeBranch: (worktreePath: string) => ipcRenderer.invoke('push-worktree-branch', worktreePath),
   // Staging & commit operations
   stageFile: (filePath: string) => ipcRenderer.invoke('stage-file', filePath),
   unstageFile: (filePath: string) => ipcRenderer.invoke('unstage-file', filePath),
@@ -83,6 +96,14 @@ const electronAPI = {
   loadVSCodeTheme: () => ipcRenderer.invoke('load-vscode-theme'),
   loadBuiltInTheme: (themeFileName: string) => ipcRenderer.invoke('load-built-in-theme', themeFileName),
   clearCustomTheme: () => ipcRenderer.invoke('clear-custom-theme'),
+  // Canvas operations
+  getCanvases: () => ipcRenderer.invoke('get-canvases'),
+  saveCanvases: (canvases: unknown[]) => ipcRenderer.invoke('save-canvases', canvases),
+  getActiveCanvasId: () => ipcRenderer.invoke('get-active-canvas-id'),
+  saveActiveCanvasId: (canvasId: string) => ipcRenderer.invoke('save-active-canvas-id', canvasId),
+  addCanvas: (canvas: unknown) => ipcRenderer.invoke('add-canvas', canvas),
+  removeCanvas: (canvasId: string) => ipcRenderer.invoke('remove-canvas', canvasId),
+  updateCanvas: (canvasId: string, updates: unknown) => ipcRenderer.invoke('update-canvas', canvasId, updates),
 }
 
 // Use `contextBridge` APIs to expose APIs to
