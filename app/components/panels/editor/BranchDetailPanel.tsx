@@ -5,7 +5,7 @@
  */
 
 import { useState, useEffect } from 'react'
-import type { Branch, BranchDiff } from '../../../types/electron'
+import type { Branch, BranchDiff, BranchDiffType } from '../../../types/electron'
 import type { StatusMessage } from '../../../types/app-types'
 
 export interface BranchDetailPanelProps {
@@ -28,6 +28,7 @@ export function BranchDetailPanel({
   const [branchDiff, setBranchDiff] = useState<BranchDiff | null>(null)
   const [loadingDiff, setLoadingDiff] = useState(false)
   const [expandedFiles, setExpandedFiles] = useState<Set<string>>(new Set())
+  const [diffType, setDiffType] = useState<BranchDiffType>('diff')
 
   // PR creation form state
   const [showPRForm, setShowPRForm] = useState(false)
@@ -37,7 +38,7 @@ export function BranchDetailPanel({
 
   const isMainOrMaster = branch.name === 'main' || branch.name === 'master'
 
-  // Load branch diff when branch changes
+  // Load branch diff when branch or diff type changes
   useEffect(() => {
     if (isMainOrMaster) {
       setBranchDiff(null)
@@ -47,7 +48,7 @@ export function BranchDetailPanel({
     let cancelled = false
     setLoadingDiff(true)
 
-    window.electronAPI.getBranchDiff(branch.name).then((diff) => {
+    window.electronAPI.getBranchDiff(branch.name, diffType).then((diff) => {
       if (!cancelled) {
         setBranchDiff(diff)
         // Expand first 3 files by default
@@ -61,7 +62,7 @@ export function BranchDetailPanel({
     return () => {
       cancelled = true
     }
-  }, [branch.name, isMainOrMaster])
+  }, [branch.name, isMainOrMaster, diffType])
 
   const handleStartPRCreation = () => {
     // Auto-generate title from branch name
@@ -256,7 +257,22 @@ export function BranchDetailPanel({
       {!isMainOrMaster && (
         <div className="branch-diff-section">
           <div className="branch-diff-header">
-            <span className="branch-diff-title">Changes vs {branchDiff?.baseBranch || 'master'}</span>
+            <div className="branch-diff-tabs">
+              <button
+                className={`branch-diff-tab ${diffType === 'diff' ? 'active' : ''}`}
+                onClick={() => setDiffType('diff')}
+                title="Current difference between this branch and master"
+              >
+                Branch Diff
+              </button>
+              <button
+                className={`branch-diff-tab ${diffType === 'changes' ? 'active' : ''}`}
+                onClick={() => setDiffType('changes')}
+                title="All changes made on this branch since it was forked"
+              >
+                Branch Changes
+              </button>
+            </div>
             {branchDiff && (
               <span className="branch-diff-stats">
                 <span className="diff-stat-files">

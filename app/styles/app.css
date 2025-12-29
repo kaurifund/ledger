@@ -3242,6 +3242,36 @@ body,
   color: var(--text-primary);
 }
 
+.branch-diff-tabs {
+  display: flex;
+  gap: 0;
+  background: var(--bg-tertiary);
+  border-radius: 6px;
+  padding: 2px;
+}
+
+.branch-diff-tab {
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.branch-diff-tab:hover {
+  color: var(--text-primary);
+}
+
+.branch-diff-tab.active {
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
+}
+
 .branch-diff-stats {
   display: flex;
   align-items: center;

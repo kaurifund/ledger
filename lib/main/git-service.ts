@@ -2269,7 +2269,10 @@ export interface BranchDiff {
 }
 
 // Get diff for a branch compared to master/main
-export async function getBranchDiff(branchName: string): Promise<BranchDiff | null> {
+// diffType: 'diff' = two-dot (current state vs master), 'changes' = three-dot (all branch changes since fork)
+export type BranchDiffType = 'diff' | 'changes'
+
+export async function getBranchDiff(branchName: string, diffType: BranchDiffType = 'changes'): Promise<BranchDiff | null> {
   if (!git) throw new Error('No repository selected')
 
   try {
@@ -2303,8 +2306,13 @@ export async function getBranchDiff(branchName: string): Promise<BranchDiff | nu
       // Ignore count errors
     }
 
-    // Get diff between base and branch (three-dot syntax shows changes since branches diverged)
-    const diffOutput = await git.raw(['diff', `${baseBranch}...${branchName}`, '--patch', '--stat'])
+    // Get diff between base and branch
+    // Two-dot (..) = actual current diff between master HEAD and branch HEAD
+    // Three-dot (...) = changes on branch since it diverged from master (branch changes)
+    const diffSyntax = diffType === 'diff' 
+      ? `${baseBranch}..${branchName}`   // Two-dot: what's different right now
+      : `${baseBranch}...${branchName}`  // Three-dot: what was developed on branch
+    const diffOutput = await git.raw(['diff', diffSyntax, '--patch', '--stat'])
 
     if (!diffOutput.trim()) {
       return {

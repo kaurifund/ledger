@@ -152,6 +152,9 @@ export interface BranchDiff {
   commitCount: number
 }
 
+// 'diff' = two-dot (current state vs master), 'changes' = three-dot (all branch changes since fork)
+export type BranchDiffType = 'diff' | 'changes'
+
 // Stash entry
 export interface StashEntry {
   index: number
@@ -328,7 +331,7 @@ export interface ElectronAPI {
   // Focus mode APIs
   getCommitGraphHistory: (limit?: number, skipStats?: boolean, showCheckpoints?: boolean) => Promise<GraphCommit[]>
   getCommitDiff: (commitHash: string) => Promise<CommitDiff | null>
-  getBranchDiff: (branchName: string) => Promise<BranchDiff | null>
+  getBranchDiff: (branchName: string, diffType?: BranchDiffType) => Promise<BranchDiff | null>
   getStashes: () => Promise<StashEntry[]>
   getStashFiles: (stashIndex: number) => Promise<StashFile[]>
   getStashFileDiff: (stashIndex: number, filePath: string) => Promise<string | null>
