@@ -36,10 +36,19 @@ export function DiffPanel({ diff, selectedCommit, formatRelativeTime, onBranchCl
     setExpandedFiles(new Set(diff.files.map((f) => f.file.path)))
   }, [diff])
 
-  // Extract branch refs from selectedCommit (filter out tags and HEAD)
+  // Extract branch refs from selectedCommit (filter out tags and standalone HEAD)
+  // Handle formats like: "HEAD -> feature/branch", "origin/main", "tag: v1.0"
   const branchRefs = selectedCommit?.refs
     .filter((ref) => !ref.startsWith('tag:') && ref !== 'HEAD')
-    .map((ref) => ref.replace(/^origin\//, '')) || []
+    .map((ref) => {
+      // Handle "HEAD -> branchname" format (current branch)
+      if (ref.startsWith('HEAD -> ')) {
+        return ref.replace('HEAD -> ', '')
+      }
+      // Remove origin/ prefix for remote tracking refs
+      return ref.replace(/^origin\//, '')
+    })
+    .filter((ref) => ref && ref !== 'HEAD') || []
 
   // Find the primary branch (first local branch, or first ref)
   const primaryBranch = branchRefs.find((ref) => 
