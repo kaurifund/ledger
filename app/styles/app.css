@@ -793,13 +793,11 @@ body,
 }
 
 /* UI "selected" state - focused in editor, background only, no border */
-.item.selected,
-.commit-item.selected {
+.item.selected {
   background: var(--accent-glow);
 }
 
-.item.selected:hover,
-.commit-item.selected:hover {
+.item.selected:hover {
   background: var(--accent-glow);
 }
 

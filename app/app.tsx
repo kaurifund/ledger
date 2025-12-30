@@ -2104,7 +2104,7 @@ export default function App() {
               {/* Uncommitted changes as virtual commit */}
               {workingStatus?.hasChanges && (
                 <div
-                  className={`commit-item uncommitted clickable ${sidebarFocus?.type === 'uncommitted' ? 'selected' : ''}`}
+                  className={`item commit-item uncommitted clickable ${sidebarFocus?.type === 'uncommitted' ? 'selected' : ''}`}
                   onClick={() => handleRadarItemClick('uncommitted', workingStatus)}
                   onDoubleClick={() => handleRadarUncommittedClick()}
                   onContextMenu={(e) => handleContextMenu(e, 'uncommitted', workingStatus)}
@@ -2136,7 +2136,7 @@ export default function App() {
                 filteredGraphCommits.map((commit) => (
                   <div
                     key={commit.hash}
-                    className={`commit-item clickable ${commit.isMerge ? 'merge' : ''} ${switching ? 'disabled' : ''} ${selectedCommit?.hash === commit.hash ? 'selected' : ''}`}
+                    className={`item commit-item clickable ${commit.isMerge ? 'merge' : ''} ${switching ? 'disabled' : ''} ${selectedCommit?.hash === commit.hash ? 'selected' : ''}`}
                     onClick={() => {
                       if (radarHasEditor) {
                         handleSelectCommit(commit)
