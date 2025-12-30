@@ -261,9 +261,26 @@ export default function App() {
     }
   }, [isResizingSidebar, isResizingDetail, isResizingGraph])
 
-  // Titlebar actions for Focus mode panel toggles and settings button
+  // Titlebar actions for panel toggles and settings button
   useEffect(() => {
     const actions: JSX.Element[] = []
+
+    // Add Radar mode editor toggle
+    if (repoPath && viewMode === 'radar') {
+      actions.push(
+        <button
+          key="editor-toggle"
+          className="panel-toggle-btn"
+          onClick={toggleRadarEditor}
+          title={radarHasEditor ? 'Hide editor panel' : 'Show editor panel'}
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+            <rect x="0.5" y="0.5" width="15" height="15" rx="1.5" stroke="currentColor" strokeWidth="1" />
+            <rect x="11" y="1" width="4" height="14" fill={radarHasEditor ? 'currentColor' : 'none'} />
+          </svg>
+        </button>
+      )
+    }
 
     // Add Focus mode panel toggles if in focus mode with a repo
     if (repoPath && viewMode === 'focus') {
@@ -338,7 +355,7 @@ export default function App() {
     )
 
     setTitlebarActions(actions.length > 0 ? <>{actions}</> : null)
-  }, [repoPath, viewMode, mainPanelView, sidebarVisible, mainVisible, detailVisible, setTitlebarActions])
+  }, [repoPath, viewMode, mainPanelView, sidebarVisible, mainVisible, detailVisible, radarHasEditor, toggleRadarEditor, setTitlebarActions])
 
   // Column drag and drop handlers for Radar view
   const handleColumnDragStart = useCallback((e: React.DragEvent, columnId: string) => {
@@ -1693,16 +1710,6 @@ export default function App() {
                 <span className="view-icon">☰</span>
                 <span className="view-label">Focus</span>
               </button>
-              {viewMode === 'radar' && (
-                <button
-                  className={`view-toggle-btn ${radarHasEditor ? 'active' : ''}`}
-                  onClick={toggleRadarEditor}
-                  title={radarHasEditor ? 'Hide Editor Panel' : 'Show Editor Panel'}
-                >
-                  <span className="view-icon">◫</span>
-                  <span className="view-label">{radarHasEditor ? 'Editor' : 'Editor'}</span>
-                </button>
-              )}
             </div>
           )}
           {!repoPath ? (
