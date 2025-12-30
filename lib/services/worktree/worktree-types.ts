@@ -67,9 +67,9 @@ export interface WorktreeDiffStats {
  * Options for creating a worktree
  */
 export interface CreateWorktreeOptions {
-  branch: string
+  branchName: string
   folderPath: string
-  createBranch: boolean
+  isNewBranch: boolean
 }
 
 /**

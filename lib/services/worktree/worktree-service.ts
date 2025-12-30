@@ -588,7 +588,7 @@ export async function createWorktree(
   ctx: RepositoryContext,
   options: CreateWorktreeOptions
 ): Promise<WorktreeResult> {
-  const { branch: branchName, folderPath, createBranch: isNewBranch } = options
+  const { branchName, folderPath, isNewBranch } = options
 
   try {
     // Validate branch name
