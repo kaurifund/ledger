@@ -8,6 +8,7 @@
 import { useState, useEffect, useRef } from 'react'
 import type { WorkingStatus, UncommittedFile, StagingFileDiff } from '../../../types/electron'
 import type { StatusMessage } from '../../../types/app-types'
+import { beforeCommit, afterCommit } from '@/lib/plugins'
 
 export interface StagingPanelProps {
   workingStatus: WorkingStatus
@@ -165,6 +166,9 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
 
     setIsCommitting(true)
     try {
+      // Plugin hook: allow plugins to transform commit message
+      const finalCommitMessage = await beforeCommit(commitMessage.trim())
+
       // If creating a new branch, do that first
       if (fullBranchName) {
         onStatusChange({ type: 'info', message: `Creating branch ${fullBranchName}...` })
@@ -177,11 +181,14 @@ export function StagingPanel({ workingStatus, currentBranch, onRefresh, onStatus
       }
 
       const result = await window.conveyor.commit.commitChanges(
-        commitMessage.trim(),
+        finalCommitMessage,
         commitDescription.trim() || undefined,
         force
       )
       if (result.success) {
+        // Plugin hook: notify plugins of successful commit
+        await afterCommit(result.hash || 'HEAD')
+
         const targetBranch = fullBranchName || currentBranch
         let finalMessage = fullBranchName ? `Created ${fullBranchName} and committed` : result.message
 

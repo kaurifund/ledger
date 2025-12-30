@@ -15,6 +15,7 @@ import { registerCommitHandlers } from '@/lib/conveyor/handlers/commit-handler'
 import { registerStashHandlers } from '@/lib/conveyor/handlers/stash-handler'
 import { registerStagingHandlers } from '@/lib/conveyor/handlers/staging-handler'
 import { registerThemeHandlers } from '@/lib/conveyor/handlers/theme-handler'
+import { registerPluginHandlers } from '@/lib/conveyor/handlers/plugin-handler'
 
 // Fix PATH for macOS when launched from Finder/Dock (not terminal)
 // Without this, git/gh commands may not be found if installed via Homebrew
@@ -34,6 +35,7 @@ app.whenReady().then(() => {
   registerStashHandlers()
   registerStagingHandlers()
   registerThemeHandlers()
+  registerPluginHandlers()
 
   // Set app user model id for windows
   electronApp.setAppUserModelId('com.electron')

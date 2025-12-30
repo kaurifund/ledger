@@ -9,6 +9,7 @@ import { CommitApi } from './commit-api'
 import { StashApi } from './stash-api'
 import { StagingApi } from './staging-api'
 import { ThemeApi } from './theme-api'
+import { PluginApi } from './plugin-api'
 
 export const conveyor = {
   app: new AppApi(electronAPI),
@@ -21,6 +22,7 @@ export const conveyor = {
   stash: new StashApi(electronAPI),
   staging: new StagingApi(electronAPI),
   theme: new ThemeApi(electronAPI),
+  plugin: new PluginApi(electronAPI),
 }
 
 export type ConveyorApi = typeof conveyor

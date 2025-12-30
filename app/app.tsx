@@ -39,6 +39,27 @@ import {
 import { initializeTheme, setThemeMode as applyThemeMode, getCurrentThemeMode, loadVSCodeTheme, type ThemeMode } from './theme'
 import { useRepositoryStore } from './stores/repository-store'
 import { useUIStore } from './stores/ui-store'
+import { usePluginStore } from './stores/plugin-store'
+import {
+  PluginSidebar,
+  PluginSettingsPanel,
+  PluginAppContainer,
+  PluginPanelContainer,
+  PluginComponentProvider,
+  PluginWidgetSlot,
+} from './components/plugins'
+import {
+  pluginManager,
+  pluginLoader,
+  examplePlugins,
+  beforeCheckout,
+  afterCheckout,
+  beforePush,
+  afterPush,
+  beforePull,
+  afterPull,
+} from '@/lib/plugins'
+import type { AppPlugin } from '@/lib/plugins/plugin-types'
 
 export default function App() {
   // Repository state from store
@@ -99,6 +120,11 @@ export default function App() {
     detailVisible, setDetailVisible,
     radarColumnOrder, setRadarColumnOrder,
   } = useUIStore()
+
+  // Plugin state from store
+  const activeAppId = usePluginStore((s) => s.activeAppId)
+  const openPanels = usePluginStore((s) => s.openPanels)
+  const closePanel = usePluginStore((s) => s.closePanel)
 
   // Local state (modals, transient UI)
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
@@ -255,6 +281,28 @@ export default function App() {
 
     setTitlebarActions(actions.length > 0 ? <>{actions}</> : null)
   }, [repoPath, viewMode, mainPanelView, sidebarVisible, mainVisible, detailVisible, setTitlebarActions])
+
+  // Initialize plugin system
+  useEffect(() => {
+    // Register example plugins
+    examplePlugins.forEach((plugin) => {
+      if (!pluginManager.get(plugin.id)) {
+        pluginManager.register(plugin)
+      }
+    })
+
+    // Load installed plugins from registry
+    pluginLoader.loadInstalled().catch((err) => {
+      console.error('Failed to load installed plugins:', err)
+    })
+  }, [])
+
+  // Get the active app plugin if one is selected
+  const activeAppPlugin = useMemo(() => {
+    if (!activeAppId) return null
+    const plugin = pluginManager.get(activeAppId)
+    return plugin?.type === 'app' ? (plugin as AppPlugin) : null
+  }, [activeAppId])
 
   // Column drag and drop handlers for Radar view
   const handleColumnDragStart = useCallback((e: React.DragEvent, columnId: string) => {
@@ -587,6 +635,13 @@ export default function App() {
     closeContextMenu()
     if (branch.current || switching) return
 
+    // Plugin hook: allow plugins to cancel checkout
+    const canProceed = await beforeCheckout(branch.name)
+    if (!canProceed) {
+      setStatus({ type: 'info', message: 'Checkout cancelled by plugin' })
+      return
+    }
+
     setSwitching(true)
     setStatus({ type: 'info', message: `Switching to ${branch.name}...` })
 
@@ -594,6 +649,7 @@ export default function App() {
       const result: CheckoutResult = await window.conveyor.branch.checkoutBranch(branch.name)
       if (result.success) {
         setStatus({ type: 'success', message: result.message, stashed: result.stashed })
+        await afterCheckout(branch.name)
         await refresh()
       } else {
         setStatus({ type: 'error', message: result.message })
@@ -610,6 +666,13 @@ export default function App() {
     closeContextMenu()
     if (switching) return
 
+    // Plugin hook: allow plugins to cancel push
+    const canProceed = await beforePush(branch.name)
+    if (!canProceed) {
+      setStatus({ type: 'info', message: 'Push cancelled by plugin' })
+      return
+    }
+
     setSwitching(true)
     setStatus({ type: 'info', message: `Pushing ${branch.name} to remote...` })
 
@@ -617,6 +680,7 @@ export default function App() {
       const result = await window.conveyor.branch.pushBranch(branch.name, true)
       if (result.success) {
         setStatus({ type: 'success', message: result.message })
+        await afterPush(branch.name)
         await refresh()
       } else {
         setStatus({ type: 'error', message: result.message })
@@ -633,6 +697,13 @@ export default function App() {
     closeContextMenu()
     if (switching) return
 
+    // Plugin hook: allow plugins to cancel pull
+    const canProceed = await beforePull(branch.name)
+    if (!canProceed) {
+      setStatus({ type: 'info', message: 'Pull cancelled by plugin' })
+      return
+    }
+
     setSwitching(true)
     setStatus({ type: 'info', message: `Pulling ${branch.name} from remote...` })
 
@@ -642,6 +713,7 @@ export default function App() {
       const result = await window.conveyor.branch.pullBranch(remoteBranch)
       if (result.success) {
         setStatus({ type: 'success', message: result.message })
+        await afterPull(branch.name)
         await refresh()
       } else {
         setStatus({ type: 'error', message: result.message })
@@ -658,6 +730,13 @@ export default function App() {
     closeContextMenu()
     if (switching) return
 
+    // Plugin hook: allow plugins to cancel pull
+    const canProceed = await beforePull(branch.name)
+    if (!canProceed) {
+      setStatus({ type: 'info', message: 'Pull cancelled by plugin' })
+      return
+    }
+
     setSwitching(true)
     setStatus({ type: 'info', message: `Fetching ${branch.name.replace('remotes/', '')}...` })
 
@@ -665,6 +744,7 @@ export default function App() {
       const result = await window.conveyor.branch.pullBranch(branch.name)
       if (result.success) {
         setStatus({ type: 'success', message: result.message })
+        await afterPull(branch.name)
         await refresh()
       } else {
         setStatus({ type: 'error', message: result.message })
@@ -883,6 +963,13 @@ export default function App() {
     async (branch: Branch) => {
       if (switching) return
 
+      // Plugin hook: allow plugins to cancel checkout
+      const canProceed = await beforeCheckout(branch.name)
+      if (!canProceed) {
+        setStatus({ type: 'info', message: 'Checkout cancelled by plugin' })
+        return
+      }
+
       setSwitching(true)
       const displayName = branch.name.replace('remotes/', '')
       setStatus({ type: 'info', message: `Checking out ${displayName}...` })
@@ -891,6 +978,7 @@ export default function App() {
         const result: CheckoutResult = await window.conveyor.branch.checkoutRemoteBranch(branch.name)
         if (result.success) {
           setStatus({ type: 'success', message: result.message, stashed: result.stashed })
+          await afterCheckout(branch.name)
           await refresh()
         } else {
           setStatus({ type: 'error', message: result.message })
@@ -908,6 +996,13 @@ export default function App() {
     async (worktree: Worktree) => {
       if (!worktree.branch || worktree.branch === currentBranch || switching) return
 
+      // Plugin hook: allow plugins to cancel checkout
+      const canProceed = await beforeCheckout(worktree.branch)
+      if (!canProceed) {
+        setStatus({ type: 'info', message: 'Checkout cancelled by plugin' })
+        return
+      }
+
       setSwitching(true)
       setStatus({ type: 'info', message: `Checking out worktree ${worktree.displayName}...` })
 
@@ -915,6 +1010,7 @@ export default function App() {
         const result: CheckoutResult = await window.conveyor.branch.checkoutBranch(worktree.branch)
         if (result.success) {
           setStatus({ type: 'success', message: result.message, stashed: result.stashed })
+          await afterCheckout(worktree.branch)
           await refresh()
         } else {
           setStatus({ type: 'error', message: result.message })
@@ -936,6 +1032,13 @@ export default function App() {
     async (commit: Commit) => {
       if (switching) return
 
+      // Plugin hook: allow plugins to cancel checkout
+      const canProceed = await beforeCheckout(commit.hash)
+      if (!canProceed) {
+        setStatus({ type: 'info', message: 'Checkout cancelled by plugin' })
+        return
+      }
+
       setSwitching(true)
       setStatus({ type: 'info', message: `Checking out ${commit.shortHash}...` })
 
@@ -943,6 +1046,7 @@ export default function App() {
         const result: CheckoutResult = await window.conveyor.branch.checkoutBranch(commit.hash)
         if (result.success) {
           setStatus({ type: 'success', message: `Checked out commit ${commit.shortHash}`, stashed: result.stashed })
+          await afterCheckout(commit.hash)
           await refresh()
         } else {
           setStatus({ type: 'error', message: result.message })
@@ -1293,17 +1397,22 @@ export default function App() {
   const menuItems = getMenuItems()
 
   return (
-    <div className="ledger-app">
-      {/* Context Menu */}
-      {contextMenu && (
-        <div ref={menuRef} className="context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
-          {menuItems.map((item, i) => (
-            <button
-              key={i}
-              className={`context-menu-item ${item.disabled ? 'disabled' : ''}`}
-              onClick={item.action}
-              disabled={item.disabled}
-            >
+    <PluginComponentProvider>
+      <div className="ledger-app-wrapper">
+        {/* Plugin Sidebar - only show when repo is loaded */}
+        {repoPath && <PluginSidebar />}
+
+        <div className="ledger-app">
+          {/* Context Menu */}
+          {contextMenu && (
+            <div ref={menuRef} className="context-menu" style={{ left: contextMenu.x, top: contextMenu.y }}>
+              {menuItems.map((item, i) => (
+                <button
+                  key={i}
+                  className={`context-menu-item ${item.disabled ? 'disabled' : ''}`}
+                  onClick={item.action}
+                  disabled={item.disabled}
+                >
               {item.label}
             </button>
           ))}
@@ -1499,8 +1608,15 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content */}
-      {repoPath && !error && viewMode === 'radar' && (
+      {/* Plugin App Content - shown when a plugin app is active */}
+      {repoPath && activeAppPlugin && (
+        <main className="ledger-content plugin-app-view">
+          <PluginAppContainer plugin={activeAppPlugin} />
+        </main>
+      )}
+
+      {/* Main Content - Radar View */}
+      {repoPath && !error && !activeAppPlugin && viewMode === 'radar' && (
         <main className="ledger-content five-columns">
           {/* Pull Requests Column */}
           <section
@@ -1611,6 +1727,7 @@ export default function App() {
                           <span className="pr-deletions">-{pr.deletions}</span>
                         </span>
                       </div>
+                      <PluginWidgetSlot slot="pr-list-item" data={pr} />
                     </li>
                   ))}
                 </ul>
@@ -1862,6 +1979,7 @@ export default function App() {
                         </span>
                       )}
                     </div>
+                    <PluginWidgetSlot slot="commit-list-item" data={commit} />
                   </div>
                 ))
               )}
@@ -1968,6 +2086,7 @@ export default function App() {
                           <span className="commit-count">{branch.commitCount} commits</span>
                         )}
                       </div>
+                      <PluginWidgetSlot slot="branch-list-item" data={branch} />
                     </li>
                   ))}
                 </ul>
@@ -2083,7 +2202,7 @@ export default function App() {
       )}
 
       {/* Focus Mode Layout */}
-      {repoPath && !error && viewMode === 'focus' && (
+      {repoPath && !error && !activeAppPlugin && viewMode === 'focus' && (
         <main className="focus-mode-layout">
           {/* Sidebar */}
           {sidebarVisible && (
@@ -2646,6 +2765,22 @@ export default function App() {
           )}
         </main>
       )}
-    </div>
+
+          {/* Plugin Settings Panel - manages its own visibility via store */}
+          <PluginSettingsPanel />
+
+          {/* Open Plugin Panels */}
+          {openPanels.map((panel) => (
+            <PluginPanelContainer
+              key={panel.instanceId}
+              pluginId={panel.pluginId}
+              instanceId={panel.instanceId}
+              data={panel.data}
+              onClose={() => closePanel(panel.instanceId)}
+            />
+          ))}
+        </div>
+      </div>
+    </PluginComponentProvider>
   )
 }

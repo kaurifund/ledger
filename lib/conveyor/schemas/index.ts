@@ -9,6 +9,7 @@ import { commitIpcSchema } from './commit-schema'
 import { stashIpcSchema } from './stash-schema'
 import { stagingIpcSchema } from './staging-schema'
 import { themeIpcSchema } from './theme-schema'
+import { pluginIpcSchema } from './plugin-schema'
 
 // Define all IPC channel schemas in one place
 export const ipcSchemas = {
@@ -22,6 +23,7 @@ export const ipcSchemas = {
   ...stashIpcSchema,
   ...stagingIpcSchema,
   ...themeIpcSchema,
+  ...pluginIpcSchema,
 } as const
 
 // Extract types from Zod schemas
