@@ -2400,9 +2400,6 @@ export default function App() {
                     Editor
                   </h2>
                 </div>
-              </div>
-              <div className="column-content editor-content">
-                {/* Editor Navigation */}
                 <div className="editor-nav">
                   <button
                     className="editor-nav-btn"
@@ -2421,6 +2418,8 @@ export default function App() {
                     →
                   </button>
                 </div>
+              </div>
+              <div className="column-content editor-content">
                 {/* Editor Panel Content - same as Focus mode */}
                 {sidebarFocus?.type === 'uncommitted' && workingStatus ? (
                   <StagingPanel

@@ -5241,6 +5241,19 @@ body,
   background: var(--bg-secondary);
 }
 
+/* When editor-nav is inside column-header (Radar mode) */
+.column-header .editor-nav {
+  padding: 0;
+  border-bottom: none;
+  background: transparent;
+}
+
+.column-header .editor-nav-btn {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
+}
+
 .editor-nav-btn {
   width: 28px;
   height: 28px;
