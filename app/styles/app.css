@@ -521,6 +521,7 @@ body,
   background: var(--bg-secondary);
 }
 
+/* Domain "active" state - current branch, current worktree, etc. */
 .item.current {
   border-left-color: var(--accent);
   background: var(--accent-glow);
@@ -789,6 +790,21 @@ body,
 .item.clickable.disabled {
   opacity: 0.6;
   cursor: not-allowed;
+}
+
+/* UI "selected" state - focused in editor, background only, no border */
+.item.selected {
+  background: var(--accent-glow);
+}
+
+.item.selected:hover {
+  background: var(--accent-glow);
+}
+
+/* Combined: item is both domain-active AND UI-selected */
+.item.current.selected {
+  border-left-color: var(--accent);
+  background: var(--accent-glow);
 }
 
 /* Status Toast */
@@ -1375,6 +1391,7 @@ body,
 .commit-item {
   padding: 8px 12px;
   border-radius: var(--radius-sm);
+  border-left: 3px solid transparent;
   cursor: pointer;
   transition: background 0.1s ease;
 }
@@ -1741,17 +1758,28 @@ body,
   margin-left: auto;
 }
 
+/* UI "selected" state for sidebar - background only, no border */
 .sidebar-item.selected {
+  background: var(--accent-glow);
+}
+
+.sidebar-item.selected:hover {
+  background: var(--accent-glow);
+}
+
+/* Domain "active" state for sidebar - current branch, etc. */
+.sidebar-item.current {
   background: var(--accent-glow);
   color: var(--accent);
 }
 
-.sidebar-item.selected .sidebar-item-name {
+.sidebar-item.current .sidebar-item-name {
   font-weight: 500;
 }
 
-.sidebar-item.selected .sidebar-pr-number {
-  color: var(--accent-dim);
+/* Combined: sidebar item is both domain-active AND UI-selected */
+.sidebar-item.current.selected {
+  background: var(--accent-glow);
 }
 
 /* Sidebar keyboard navigation focus */
@@ -4719,6 +4747,35 @@ body,
   min-width: 0;
 }
 
+/* Editor column in Radar view */
+.ledger-content.five-columns .column.editor-column {
+  flex: 0 0 400px;
+  min-width: 300px;
+  max-width: 500px;
+  border-left: 1px solid var(--border);
+}
+
+.column.editor-column .column-content.editor-content {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.column.editor-column .editor-nav {
+  flex-shrink: 0;
+}
+
+.column.editor-column .detail-empty,
+.column.editor-column .detail-loading,
+.column.editor-column .detail-error {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
 /* ========================================
    Modal Enhancements
    ======================================== */
@@ -5182,6 +5239,19 @@ body,
   padding: 8px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-secondary);
+}
+
+/* When editor-nav is inside column-header (Radar mode) */
+.column-header .editor-nav {
+  padding: 0;
+  border-bottom: none;
+  background: transparent;
+}
+
+.column-header .editor-nav-btn {
+  width: 24px;
+  height: 24px;
+  font-size: 12px;
 }
 
 .editor-nav-btn {
