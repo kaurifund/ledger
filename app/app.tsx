@@ -561,16 +561,14 @@ export default function App() {
     setSidebarFiltersOpen((prev) => ({ ...prev, [section]: !prev[section] }))
   }, [])
 
-  // Radar single-click handlers - focus item in editor (stays in Radar if editor visible)
+  // Radar single-click handlers - soft select item (always works, drives editor when visible)
   const handleRadarItemClick = useCallback(
     (type: SidebarFocusType, data: PullRequest | Branch | Worktree | StashEntry | WorkingStatus) => {
-      // If editor is visible in Radar, just focus the item
-      if (radarHasEditor) {
-        handleSidebarFocus(type, data)
-      }
-      // Otherwise do nothing on single click (double-click will navigate to Focus)
+      // Always select the item - makes UI feel interactive and coherent
+      // When editor is visible, this also shows the item in the editor
+      handleSidebarFocus(type, data)
     },
-    [radarHasEditor, handleSidebarFocus]
+    [handleSidebarFocus]
   )
 
   // Radar card double-click handlers - switch to Focus mode with item selected
@@ -2137,11 +2135,7 @@ export default function App() {
                   <div
                     key={commit.hash}
                     className={`item commit-item clickable ${commit.isMerge ? 'merge' : ''} ${switching ? 'disabled' : ''} ${selectedCommit?.hash === commit.hash ? 'selected' : ''}`}
-                    onClick={() => {
-                      if (radarHasEditor) {
-                        handleSelectCommit(commit)
-                      }
-                    }}
+                    onClick={() => handleSelectCommit(commit)}
                     onDoubleClick={() => handleRadarCommitClick(commit)}
                     onContextMenu={(e) => handleContextMenu(e, 'commit', commit)}
                   >
