@@ -59,6 +59,24 @@ export function DiffPanel({ diff, selectedCommit, formatRelativeTime, onBranchCl
       <div className="detail-type-badge">Commit</div>
       <h3 className="detail-title commit-title">{diff.message}</h3>
       
+      {/* Branch reference - below title, label on own line */}
+      {primaryBranch && (
+        <div className="commit-branch-section">
+          <span className="commit-branch-label">Branch</span>
+          <button
+            className="commit-branch-link"
+            onClick={() => handleBranchClick(primaryBranch)}
+            title={`Go to branch: ${primaryBranch}`}
+          >
+            <span className="branch-icon">⎇</span>
+            {primaryBranch}
+            {branchRefs.length > 1 && (
+              <span className="branch-count">+{branchRefs.length - 1}</span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* Standardized meta grid */}
       <div className="detail-meta-grid">
         <div className="detail-meta-item">
@@ -84,24 +102,6 @@ export function DiffPanel({ diff, selectedCommit, formatRelativeTime, onBranchCl
           </span>
         </div>
       </div>
-
-      {/* Branch reference - full width, clickable */}
-      {primaryBranch && (
-        <div className="commit-branch-section">
-          <span className="meta-label">Branch</span>
-          <button
-            className="commit-branch-link"
-            onClick={() => handleBranchClick(primaryBranch)}
-            title={`Go to branch: ${primaryBranch}`}
-          >
-            <span className="branch-icon">⎇</span>
-            {primaryBranch}
-            {branchRefs.length > 1 && (
-              <span className="branch-count">+{branchRefs.length - 1}</span>
-            )}
-          </button>
-        </div>
-      )}
 
       {/* File list with diffs */}
       <div className="diff-files">
