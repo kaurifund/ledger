@@ -331,16 +331,32 @@ export default function App() {
   }, [])
 
   const selectRepo = async () => {
-    const path = await window.electronAPI.selectRepo()
-    if (path) {
-      // Clear state before switching to prevent stale data mixing with new repo
-      setWorktrees([])
-      setBranches([])
-      setCommits([])
-      setPullRequests([])
-      setWorkingStatus(null)
-      setRepoPath(path)
-      await refresh()
+    if (switching) return
+
+    setSwitching(true)
+    setStatus({ type: 'info', message: 'Opening repository selector...' })
+
+    try {
+      const path = await window.electronAPI.selectRepo()
+      if (path) {
+        // Clear state before switching to prevent stale data mixing with new repo
+        setWorktrees([])
+        setBranches([])
+        setCommits([])
+        setPullRequests([])
+        setWorkingStatus(null)
+        setRepoPath(path)
+        setStatus({ type: 'info', message: 'Loading repository...' })
+        await refresh()
+        setStatus({ type: 'success', message: 'Repository loaded' })
+      } else {
+        // User cancelled dialog - clear status
+        setStatus(null)
+      }
+    } catch (err) {
+      setStatus({ type: 'error', message: (err as Error).message })
+    } finally {
+      setSwitching(false)
     }
   }
 
@@ -525,6 +541,8 @@ export default function App() {
   // PR context menu actions
   const handlePRCheckout = async (pr: PullRequest) => {
     closeContextMenu()
+    if (switching) return
+
     setSwitching(true)
     setStatus({ type: 'info', message: `Checking out ${pr.branch}...` })
 
@@ -621,6 +639,9 @@ export default function App() {
   // Push local branch to remote
   const handleLocalBranchPush = async (branch: Branch) => {
     closeContextMenu()
+    if (switching) return
+
+    setSwitching(true)
     setStatus({ type: 'info', message: `Pushing ${branch.name} to remote...` })
 
     try {
@@ -633,12 +654,17 @@ export default function App() {
       }
     } catch (err) {
       setStatus({ type: 'error', message: (err as Error).message })
+    } finally {
+      setSwitching(false)
     }
   }
 
   // Pull local branch from remote
   const handleLocalBranchPull = async (branch: Branch) => {
     closeContextMenu()
+    if (switching) return
+
+    setSwitching(true)
     setStatus({ type: 'info', message: `Pulling ${branch.name} from remote...` })
 
     try {
@@ -653,12 +679,17 @@ export default function App() {
       }
     } catch (err) {
       setStatus({ type: 'error', message: (err as Error).message })
+    } finally {
+      setSwitching(false)
     }
   }
 
   // Remote branch context menu actions
   const handleRemoteBranchPull = async (branch: Branch) => {
     closeContextMenu()
+    if (switching) return
+
+    setSwitching(true)
     setStatus({ type: 'info', message: `Fetching ${branch.name.replace('remotes/', '')}...` })
 
     try {
@@ -671,6 +702,8 @@ export default function App() {
       }
     } catch (err) {
       setStatus({ type: 'error', message: (err as Error).message })
+    } finally {
+      setSwitching(false)
     }
   }
 
@@ -956,13 +989,21 @@ export default function App() {
 
   useEffect(() => {
     if (!window.electronAPI) return
-    // Try to load the saved repo from last session
-    window.electronAPI.loadSavedRepo().then((path) => {
-      if (path) {
-        setRepoPath(path)
-        refresh()
+
+    const loadInitialRepo = async () => {
+      try {
+        const path = await window.electronAPI.loadSavedRepo()
+        if (path) {
+          setRepoPath(path)
+          await refresh()
+        }
+      } catch (err) {
+        console.error('Failed to load saved repository:', err)
+        setStatus({ type: 'error', message: 'Failed to load saved repository' })
       }
-    })
+    }
+
+    loadInitialRepo()
   }, [])
 
   // Initialize theme on app mount
@@ -1876,8 +1917,13 @@ export default function App() {
                     onChange={async (e) => {
                       const newValue = e.target.checked
                       setShowCheckpoints(newValue)
-                      const graphResult = await window.electronAPI.getCommitGraphHistory(100, true, newValue)
-                      setGraphCommits(graphResult)
+                      try {
+                        const graphResult = await window.electronAPI.getCommitGraphHistory(100, true, newValue)
+                        setGraphCommits(graphResult)
+                      } catch (err) {
+                        console.error('Failed to update commit graph:', err)
+                        setShowCheckpoints(!newValue)
+                      }
                     }}
                   />
                   <span>Checkpoints</span>
@@ -2636,9 +2682,14 @@ export default function App() {
                           onChange={async (e) => {
                             const newValue = e.target.checked
                             setShowCheckpoints(newValue)
-                            // Reload commits with new filter
-                            const graphResult = await window.electronAPI.getCommitGraphHistory(100, true, newValue)
-                            setGraphCommits(graphResult)
+                            try {
+                              // Reload commits with new filter
+                              const graphResult = await window.electronAPI.getCommitGraphHistory(100, true, newValue)
+                              setGraphCommits(graphResult)
+                            } catch (err) {
+                              console.error('Failed to update commit graph:', err)
+                              setShowCheckpoints(!newValue)
+                            }
                           }}
                         />
                         <span>Checkpoints</span>
