@@ -2,15 +2,11 @@ import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import type {
   Branch,
   Worktree,
-  BranchFilter,
-  BranchSort,
   CheckoutResult,
   PullRequest,
   Commit,
   WorkingStatus,
   UncommittedFile,
-  PRFilter,
-  PRSort,
   GraphCommit,
   CommitDiff,
   StashEntry,
@@ -21,14 +17,10 @@ import type {
   BranchDiff,
 } from './types/electron'
 import type {
-  ViewMode,
-  MainPanelView,
-  StatusMessage,
   ContextMenuType,
   ContextMenu,
   MenuItem,
   SidebarFocusType,
-  SidebarFocus,
 } from './types/app-types'
 import './styles/app.css'
 import { useWindowContext } from './components/window'
@@ -45,107 +37,80 @@ import {
   SidebarDetailPanel,
 } from './components/panels/editor'
 import { initializeTheme, setThemeMode as applyThemeMode, getCurrentThemeMode, loadVSCodeTheme, type ThemeMode } from './theme'
+import { useRepositoryStore } from './stores/repository-store'
+import { useUIStore } from './stores/ui-store'
 
 export default function App() {
-  const [repoPath, setRepoPath] = useState<string | null>(null)
-  const [branches, setBranches] = useState<Branch[]>([])
-  const [currentBranch, setCurrentBranch] = useState<string>('')
-  const [worktrees, setWorktrees] = useState<Worktree[]>([])
-  const [pullRequests, setPullRequests] = useState<PullRequest[]>([])
-  const [prError, setPrError] = useState<string | null>(null)
-  const [commits, setCommits] = useState<Commit[]>([])
-  const [workingStatus, setWorkingStatus] = useState<WorkingStatus | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [status, setStatus] = useState<StatusMessage | null>(null)
-  const [switching, setSwitching] = useState(false)
+  // Repository state from store
+  const {
+    repoPath, setRepoPath,
+    branches, setBranches,
+    currentBranch, setCurrentBranch,
+    worktrees, setWorktrees,
+    pullRequests, setPullRequests,
+    prError, setPrError,
+    commits, setCommits,
+    workingStatus, setWorkingStatus,
+    error, setError,
+    loading, setLoading,
+    status, setStatus,
+    switching, setSwitching,
+    githubUrl, setGithubUrl,
+    graphCommits, setGraphCommits,
+    selectedCommit, setSelectedCommit,
+    commitDiff, setCommitDiff,
+    stashes, setStashes,
+    loadingDiff, setLoadingDiff,
+  } = useRepositoryStore()
+
+  // UI state from store
+  const {
+    themeMode, setThemeMode,
+    viewMode, setViewMode,
+    mainPanelView, setMainPanelView,
+    sidebarFocus, setSidebarFocus,
+    historyFilterOpen, setHistoryFilterOpen,
+    radarCommitsFilterOpen, setRadarCommitsFilterOpen,
+    showCheckpoints, setShowCheckpoints,
+    showGraphLines, setShowGraphLines,
+    onlyBranchHeads, setOnlyBranchHeads,
+    onlyUnmergedBranches, setOnlyUnmergedBranches,
+    sidebarSections, setSidebarSections,
+    sidebarFiltersOpen, setSidebarFiltersOpen,
+    localFilter, setLocalFilter,
+    localSort, setLocalSort,
+    remoteFilter, setRemoteFilter,
+    remoteSort, setRemoteSort,
+    prFilter, setPrFilter,
+    prSort, setPrSort,
+    prSearch, setPrSearch,
+    localBranchSearch, setLocalBranchSearch,
+    remoteBranchSearch, setRemoteBranchSearch,
+    worktreeSearch, setWorktreeSearch,
+    prControlsOpen, setPrControlsOpen,
+    localControlsOpen, setLocalControlsOpen,
+    remoteControlsOpen, setRemoteControlsOpen,
+    worktreeControlsOpen, setWorktreeControlsOpen,
+    worktreeParentFilter, setWorktreeParentFilter,
+    sidebarWidth, setSidebarWidth,
+    detailWidth, setDetailWidth,
+    sidebarVisible, setSidebarVisible,
+    mainVisible, setMainVisible,
+    detailVisible, setDetailVisible,
+    radarColumnOrder, setRadarColumnOrder,
+  } = useUIStore()
+
+  // Local state (modals, transient UI)
   const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null)
   const [showNewBranchModal, setShowNewBranchModal] = useState(false)
   const [newBranchName, setNewBranchName] = useState('')
   const [creatingBranch, setCreatingBranch] = useState(false)
-  const [githubUrl, setGithubUrl] = useState<string | null>(null)
-  const [themeMode, setThemeMode] = useState<ThemeMode>('light')
-  const { setTitle, setTitlebarActions } = useWindowContext()
-
-  // View mode state
-  const [viewMode, setViewMode] = useState<ViewMode>('radar')
-  const [mainPanelView, setMainPanelView] = useState<MainPanelView>('history')
-
-  // Focus mode state
-  const [graphCommits, setGraphCommits] = useState<GraphCommit[]>([])
-  const [selectedCommit, setSelectedCommit] = useState<GraphCommit | null>(null)
-  const [commitDiff, setCommitDiff] = useState<CommitDiff | null>(null)
-  const [stashes, setStashes] = useState<StashEntry[]>([])
-  const [loadingDiff, setLoadingDiff] = useState(false)
-  const [sidebarFocus, setSidebarFocus] = useState<SidebarFocus | null>(null)
-  // History/Commits panel filters (shared between Radar and Focus modes)
-  const [historyFilterOpen, setHistoryFilterOpen] = useState(false) // Focus mode filter panel
-  const [radarCommitsFilterOpen, setRadarCommitsFilterOpen] = useState(false) // Radar mode filter panel
-  const [showCheckpoints, setShowCheckpoints] = useState(false) // Hide Conductor checkpoints by default
-  const [showGraphLines, setShowGraphLines] = useState(true) // Show git graph visualization (Focus mode only)
-  const [onlyBranchHeads, setOnlyBranchHeads] = useState(false) // Show only commits that are branch HEADs
-  const [onlyUnmergedBranches, setOnlyUnmergedBranches] = useState(false) // Show only commits from unmerged branches
-
-  // Sidebar collapsed state
-  const [sidebarSections, setSidebarSections] = useState({
-    branches: true,
-    remotes: false,
-    worktrees: true,
-    stashes: false,
-    prs: true,
-  })
-
-  // Sidebar filter panels open state
-  const [sidebarFiltersOpen, setSidebarFiltersOpen] = useState({
-    prs: false,
-    branches: false,
-    remotes: false,
-    worktrees: false,
-  })
-
-  // Filter and sort state
-  const [localFilter, setLocalFilter] = useState<BranchFilter>('all')
-  const [localSort, setLocalSort] = useState<BranchSort>('name')
-  const [remoteFilter, setRemoteFilter] = useState<BranchFilter>('all')
-  const [remoteSort, setRemoteSort] = useState<BranchSort>('name')
-  const [prFilter, setPrFilter] = useState<PRFilter>('open-not-draft')
-  const [prSort, setPrSort] = useState<PRSort>('updated')
-
-  // Search state for Radar mode columns
-  const [prSearch, setPrSearch] = useState('')
-  const [localBranchSearch, setLocalBranchSearch] = useState('')
-  const [remoteBranchSearch, setRemoteBranchSearch] = useState('')
-  const [worktreeSearch, setWorktreeSearch] = useState('')
-
-  // Collapsible controls state
-  const [prControlsOpen, setPrControlsOpen] = useState(false)
-  const [localControlsOpen, setLocalControlsOpen] = useState(false)
-  const [remoteControlsOpen, setRemoteControlsOpen] = useState(false)
-  const [worktreeControlsOpen, setWorktreeControlsOpen] = useState(false)
-
-  // Worktree filter state
-  const [worktreeParentFilter, setWorktreeParentFilter] = useState<string>('all')
-
-  // Focus view panel state (resizable + collapsible)
-  const [sidebarWidth, setSidebarWidth] = useState(220)
-  const [detailWidth, setDetailWidth] = useState(400)
-  const [sidebarVisible, setSidebarVisible] = useState(true)
-  const [mainVisible, setMainVisible] = useState(true)
-  const [detailVisible, setDetailVisible] = useState(true)
   const [isResizingSidebar, setIsResizingSidebar] = useState(false)
   const [isResizingDetail, setIsResizingDetail] = useState(false)
-
-  // Radar view column order (drag-and-drop)
-  const [radarColumnOrder, setRadarColumnOrder] = useState<string[]>([
-    'prs',
-    'worktrees',
-    'commits',
-    'branches',
-    'remotes',
-  ])
   const [draggingColumn, setDraggingColumn] = useState<string | null>(null)
   const [dragOverColumn, setDragOverColumn] = useState<string | null>(null)
 
+  const { setTitle, setTitlebarActions } = useWindowContext()
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close context menu when clicking outside
