@@ -118,9 +118,15 @@ CanvasRenderer
 Panels
 ```
 
-## Files Changed in Migration
+## Migration Results
 
-- `app/app.tsx`: 3475 → 1975 lines (-1500)
-- Deleted: Old Radar/Focus inline JSX
-- Deleted: `PanelRenderer.tsx` (replaced by `CanvasRenderer`)
-- Added: `CanvasRenderer.tsx`, `UnifiedList.tsx`
+**app/app.tsx**: 3475 → 1461 lines (-58%)
+
+**Deleted files:**
+- Old inline Radar/Focus JSX
+- `PanelRenderer.tsx` → `CanvasRenderer.tsx`
+- `CanvasSwitcher.tsx` (unused)
+- `useCanvasPersistence.ts` (unused)
+- `types.ts` (unused)
+
+**Net change**: 21 files, +231 lines (with modular architecture)
