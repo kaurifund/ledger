@@ -5329,7 +5329,7 @@ body,
   display: flex;
   flex-direction: column;
   border-right: 1px solid var(--border);
-  overflow: hidden;
+  overflow: visible; /* Allow resize handle to extend past edge */
   position: relative;
   background: var(--bg-primary);
 }
