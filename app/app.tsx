@@ -1966,8 +1966,8 @@ export default function App() {
         </div>
       )}
 
-      {/* Main Content - Canvas Renderer for all canvases */}
-      {repoPath && !error && viewMode !== 'focus' && (
+      {/* Main Content - Canvas Renderer for ALL canvases */}
+      {repoPath && !error && (
         <main className="ledger-content canvas-mode">
           <CanvasRenderer
             data={canvasData}
@@ -2741,8 +2741,8 @@ export default function App() {
         </main>
       )}
 
-      {/* Focus Mode Layout */}
-      {repoPath && !error && viewMode === 'focus' && (
+      {/* Focus Mode Layout (OLD - keeping for reference during migration) */}
+      {false && repoPath && !error && viewMode === 'focus' && (
         <main className="focus-mode-layout">
           {/* Sidebar */}
           {sidebarVisible && (

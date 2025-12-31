@@ -22,6 +22,9 @@ export type { WorktreeListProps } from './WorktreeList'
 export { StashList } from './StashList'
 export type { StashListProps } from './StashList'
 
+export { UnifiedList } from './UnifiedList'
+export type { UnifiedListProps } from './UnifiedList'
+
 // Shared types
 export * from './types'
 

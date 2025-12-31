@@ -27,7 +27,7 @@ import { Canvas } from './Canvas'
 import { EditorSlot } from './EditorSlot'
 
 // Import panels
-import { PRList, BranchList, WorktreeList, StashList } from '../panels/list'
+import { PRList, BranchList, WorktreeList, StashList, UnifiedList } from '../panels/list'
 import { GitGraph } from '../panels/viz'
 
 // ========================================
@@ -234,12 +234,30 @@ export function CanvasRenderer({
           )
 
         case 'unified-list':
-          // This is the Focus sidebar - for now, render a placeholder
-          // In the full migration, this would be a UnifiedList component
           return (
-            <div className="empty-column">
-              <span>Unified list (Focus sidebar)</span>
-            </div>
+            <UnifiedList
+              column={column}
+              prs={data.prs}
+              branches={data.branches}
+              worktrees={data.worktrees}
+              stashes={data.stashes}
+              selectedPR={selection.selectedPR}
+              selectedBranch={selection.selectedBranch}
+              selectedWorktree={selection.selectedWorktree}
+              selectedStash={selection.selectedStash}
+              onSelectPR={handlers.onSelectPR}
+              onDoubleClickPR={handlers.onDoubleClickPR}
+              onContextMenuPR={handlers.onContextMenuPR}
+              onSelectBranch={handlers.onSelectBranch}
+              onDoubleClickBranch={handlers.onDoubleClickBranch}
+              onContextMenuBranch={handlers.onContextMenuLocalBranch}
+              onSelectWorktree={handlers.onSelectWorktree}
+              onDoubleClickWorktree={handlers.onDoubleClickWorktree}
+              onContextMenuWorktree={handlers.onContextMenuWorktree}
+              onSelectStash={handlers.onSelectStash}
+              onDoubleClickStash={handlers.onDoubleClickStash}
+              formatRelativeTime={handlers.formatRelativeTime}
+            />
           )
 
         default:
