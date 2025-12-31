@@ -12,7 +12,7 @@
  */
 
 // Context and state management
-export { CanvasProvider, useCanvas, RADAR_CANVAS, FOCUS_CANVAS, PRESET_CANVASES } from './CanvasContext'
+export { CanvasProvider, useCanvas, RADAR_CANVAS, FOCUS_CANVAS, GRAPH_CANVAS, PRESET_CANVASES } from './CanvasContext'
 
 // Components
 export { Canvas } from './Canvas'

@@ -35,13 +35,18 @@ export function useCanvasPersistence(options: UseCanvasPersistenceOptions = {}) 
         const canvases: Canvas[] = savedCanvases.map((c) => ({
           id: c.id,
           name: c.name,
+          icon: c.icon,
           columns: c.columns.map((col) => ({
             id: col.id,
             slotType: col.slotType,
-            panel: col.panel as any,
+            panel: col.panel as Canvas['columns'][0]['panel'],
             width: col.width,
             minWidth: col.minWidth,
             config: col.config,
+            label: col.label,
+            icon: col.icon,
+            visible: col.visible,
+            collapsible: col.collapsible,
           })),
           isPreset: c.isPreset,
         }))
@@ -84,6 +89,7 @@ export function useCanvasPersistence(options: UseCanvasPersistenceOptions = {}) 
         const canvasConfigs = customCanvases.map((c) => ({
           id: c.id,
           name: c.name,
+          icon: c.icon,
           columns: c.columns.map((col) => ({
             id: col.id,
             slotType: col.slotType,
@@ -91,6 +97,10 @@ export function useCanvasPersistence(options: UseCanvasPersistenceOptions = {}) 
             width: col.width,
             minWidth: col.minWidth,
             config: col.config,
+            label: col.label,
+            icon: col.icon,
+            visible: col.visible,
+            collapsible: col.collapsible,
           })),
           isPreset: c.isPreset,
         }))

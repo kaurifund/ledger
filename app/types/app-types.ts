@@ -13,6 +13,8 @@ import type {
 } from './electron'
 
 // View modes for the app layout
+// NOTE: ViewMode is deprecated - use activeCanvasId from CanvasContext instead
+// Kept for backwards compatibility during migration
 export type ViewMode = 'radar' | 'focus'
 export type MainPanelView = 'history' | 'settings'
 
@@ -64,6 +66,7 @@ export type ListPanelType =
   | 'branch-list'
   | 'remote-list'
   | 'worktree-list'
+  | 'stash-list'
   | 'commit-list'
   | 'unified-list'
 
@@ -86,6 +89,11 @@ export type PanelType = ListPanelType | EditorPanelType | VizPanelType
 
 /**
  * Column definition within a canvas
+ * 
+ * All columns support:
+ * - Drag reorder (via header drag handle)
+ * - Resize (via edge drag, respects minWidth)
+ * - Visibility toggle (if collapsible: true)
  */
 export interface Column {
   id: string
@@ -94,14 +102,29 @@ export interface Column {
   width: number | 'flex'       // Width in pixels or flex grow
   minWidth?: number            // Minimum width for resizing
   config?: Record<string, unknown>  // Panel-specific config
+  
+  // Display
+  label?: string               // Header label (e.g., "Pull Requests")
+  icon?: string                // Header icon (e.g., "⊕")
+  
+  // Visibility
+  visible?: boolean            // Is column shown? (default: true)
+  collapsible?: boolean        // Can user toggle visibility? (default: false)
 }
 
 /**
  * Canvas definition - a named layout with columns
+ * 
+ * All canvases share the same behaviors:
+ * - Column drag reorder
+ * - Column resize
+ * - Column visibility toggle
+ * - Editor back/forward navigation (if has editor slot)
  */
 export interface Canvas {
   id: string
   name: string
+  icon?: string                // Tab icon (e.g., "📡")
   columns: Column[]
   isPreset?: boolean           // Built-in canvases that can't be deleted
 }
@@ -131,4 +154,8 @@ export interface CanvasState {
   canvases: Canvas[]
   activeCanvasId: string
   editorState: EditorState
+  
+  // App-level canvas settings
+  startingCanvasId?: string    // Canvas to show on app launch (default: first preset)
+  editorHomeCanvasId?: string  // Canvas to switch to when navigating to editor (default: first with editor slot)
 }

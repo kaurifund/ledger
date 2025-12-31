@@ -422,7 +422,13 @@ body,
   transition: background 0.15s ease;
 }
 
-.column-header.clickable-header:hover {
+/* Editor header hover effect */
+.column-header.editor-header {
+  transition: background 0.15s ease;
+}
+
+.column-header.clickable-header:hover,
+.column-header.editor-header:hover {
   background: var(--bg-tertiary);
 }
 

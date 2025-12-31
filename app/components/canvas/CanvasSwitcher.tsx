@@ -34,8 +34,7 @@ export function CanvasSwitcher({ className = '', compact = false }: CanvasSwitch
             onClick={() => setActiveCanvas(canvas.id)}
             title={canvas.name}
           >
-            {canvas.id === 'radar' && <span className="canvas-tab-icon">📡</span>}
-            {canvas.id === 'focus' && <span className="canvas-tab-icon">🎯</span>}
+            <span className="canvas-tab-icon">{canvas.icon || '📋'}</span>
             {!compact && <span className="canvas-tab-name">{canvas.name}</span>}
           </button>
         ))}
@@ -53,7 +52,7 @@ export function CanvasSwitcher({ className = '', compact = false }: CanvasSwitch
                 onClick={() => setActiveCanvas(canvas.id)}
                 title={canvas.name}
               >
-                <span className="canvas-tab-icon">📋</span>
+                <span className="canvas-tab-icon">{canvas.icon || '📋'}</span>
                 {!compact && <span className="canvas-tab-name">{canvas.name}</span>}
               </button>
             ))}

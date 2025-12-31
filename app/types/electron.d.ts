@@ -452,11 +452,18 @@ interface CanvasColumnConfig {
   width: number | 'flex'
   minWidth?: number
   config?: Record<string, unknown>
+  // Display
+  label?: string
+  icon?: string
+  // Visibility
+  visible?: boolean
+  collapsible?: boolean
 }
 
 interface CanvasConfig {
   id: string
   name: string
+  icon?: string
   columns: CanvasColumnConfig[]
   isPreset?: boolean
 }

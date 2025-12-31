@@ -2565,7 +2565,7 @@ export default function App() {
               <div className="column-drag-handle" title="Drag to reorder">
                 ⋮⋮
               </div>
-              <div className="column-header">
+              <div className="column-header editor-header">
                 <div className="column-title">
                   <h2>
                     <span className="column-icon">◇</span>
