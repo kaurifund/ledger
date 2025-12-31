@@ -13,7 +13,7 @@ import type { StatusMessage, SidebarFocus } from '../../../types/app-types'
 import { BranchDetailPanel } from './BranchDetailPanel'
 import { WorktreeDetailPanel } from './WorktreeDetailPanel'
 import { StashDetailPanel } from './StashDetailPanel'
-import { CreateWorktreePanel } from './CreateWorktreePanel'
+import { WorktreeCreatePanel } from './WorktreeCreatePanel'
 
 export interface EditorRouterProps {
   focus: SidebarFocus
@@ -30,6 +30,7 @@ export interface EditorRouterProps {
   onCheckoutWorktree?: (worktree: Worktree) => void
   onDeleteBranch?: (branch: Branch) => void
   onDeleteRemoteBranch?: (branch: Branch) => void
+  onOpenStaging?: () => void
   branches?: Branch[]
   repoPath?: string | null
   worktrees?: Worktree[]
@@ -51,13 +52,14 @@ export function EditorRouter({
   onCheckoutWorktree,
   onDeleteBranch,
   onDeleteRemoteBranch,
+  onOpenStaging,
   branches,
   repoPath,
   onFocusWorktree,
 }: EditorRouterProps) {
   switch (focus.type) {
     case 'pr': {
-      // Handled by PRReviewPanel in parent - PR needs special handling
+      // Handled by PRDetailPanel in parent - PR needs special handling
       // because it's shown inline in the radar view
       return null
     }
@@ -71,6 +73,7 @@ export function EditorRouter({
           onStatusChange={onStatusChange}
           onCheckoutBranch={onCheckoutBranch}
           onDeleteBranch={onDeleteBranch}
+          onOpenStaging={onOpenStaging}
           switching={switching}
           deleting={deleting}
         />
@@ -142,13 +145,14 @@ export function EditorRouter({
           onRefresh={onRefresh}
           onClearFocus={onClearFocus}
           onCheckoutWorktree={onCheckoutWorktree}
+          onOpenStaging={onOpenStaging}
         />
       )
     }
 
     case 'create-worktree': {
       return (
-        <CreateWorktreePanel
+        <WorktreeCreatePanel
           branches={branches || []}
           repoPath={repoPath || ''}
           onStatusChange={onStatusChange}
@@ -189,7 +193,7 @@ export function EditorRouter({
 
     case 'uncommitted': {
       // Render the full staging panel
-      // This is handled by parent component which renders StagingPanel directly
+      // This is handled by parent component which renders CommitCreatePanel directly
       return null
     }
 

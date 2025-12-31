@@ -26,8 +26,8 @@ import { useWindowContext } from './components/window'
 import { useCanvas, useCanvasNavigation, useCanvasPersistence, CanvasRenderer, type CanvasData, type CanvasSelection, type CanvasHandlers, type CanvasUIState } from './components/canvas'
 import {
   DiffPanel,
-  StagingPanel,
-  PRReviewPanel,
+  CommitCreatePanel,
+  PRDetailPanel,
   SidebarDetailPanel,
 } from './components/panels/editor'
 import { SettingsPanel } from './components/SettingsPanel'
@@ -66,7 +66,7 @@ export default function App() {
   } = useCanvas()
   
   // Initialize keyboard shortcuts for editor navigation
-  useCanvasNavigation()
+  const { openStaging } = useCanvasNavigation()
   
   // Initialize canvas persistence (auto-save custom canvases and active canvas)
   useCanvasPersistence()
@@ -1109,6 +1109,7 @@ export default function App() {
     selectedWorktree: sidebarFocus?.type === 'worktree' ? (sidebarFocus.data as Worktree) : null,
     selectedStash: sidebarFocus?.type === 'stash' ? (sidebarFocus.data as StashEntry) : null,
     selectedCommit,
+    uncommittedSelected: sidebarFocus?.type === 'uncommitted',
   }), [sidebarFocus, selectedCommit])
 
   // Render editor panel content based on current selection
@@ -1127,7 +1128,7 @@ export default function App() {
     // Staging panel for uncommitted changes
     if (sidebarFocus?.type === 'uncommitted' && workingStatus) {
       return (
-        <StagingPanel
+        <CommitCreatePanel
           workingStatus={workingStatus}
           currentBranch={currentBranch}
           onRefresh={refresh}
@@ -1136,10 +1137,10 @@ export default function App() {
       )
     }
     
-    // PR Review panel
+    // PR Detail panel
     if (sidebarFocus?.type === 'pr') {
       return (
-        <PRReviewPanel
+        <PRDetailPanel
           pr={sidebarFocus.data as PullRequest}
           formatRelativeTime={formatRelativeTime}
           onCheckout={handlePRCheckout}
@@ -1167,6 +1168,7 @@ export default function App() {
           onCheckoutWorktree={handleWorktreeDoubleClick}
           onDeleteBranch={handleDeleteBranch}
           onDeleteRemoteBranch={handleDeleteRemoteBranch}
+          onOpenStaging={openStaging}
           branches={branches}
           repoPath={repoPath}
           worktrees={worktrees}
@@ -1239,12 +1241,21 @@ export default function App() {
       setActiveCanvas('focus')
       handleSelectCommit(commit)
     },
+    onContextMenuCommit: (e, commit) => handleContextMenu(e, 'commit', commit),
+    // Uncommitted changes handlers
+    onSelectUncommitted: () => {
+      if (workingStatus) {
+        handleRadarItemClick('uncommitted', workingStatus)
+      }
+    },
+    onDoubleClickUncommitted: handleRadarUncommittedClick,
+    onContextMenuUncommitted: (e, status) => handleContextMenu(e, 'uncommitted', status),
     // Editor content - renders actual panels
     renderEditorContent,
   }), [
     formatRelativeTime, formatDate, handleRadarItemClick, handleRadarPRClick, handleRadarBranchClick,
     handleRadarWorktreeClick, handleRadarStashClick, handleContextMenu, handleSelectCommit, navigateToEditor,
-    renderEditorContent, setActiveCanvas
+    renderEditorContent, setActiveCanvas, workingStatus, handleRadarUncommittedClick
   ])
 
   const canvasUIState: CanvasUIState = useMemo(() => ({
@@ -1365,30 +1376,17 @@ export default function App() {
         <div className="header-actions">
           {repoPath && (
             <div className="view-toggle">
-              <button
-                className={`view-toggle-btn ${viewMode === 'radar' ? 'active' : ''}`}
-                onClick={() => setActiveCanvas('radar')}
-                title="Radar Mode"
-              >
-                <span className="view-icon">⊞</span>
-                <span className="view-label">Radar</span>
-              </button>
-              <button
-                className={`view-toggle-btn ${viewMode === 'focus' ? 'active' : ''}`}
-                onClick={() => setActiveCanvas('focus')}
-                title="Focus Mode"
-              >
-                <span className="view-icon">☰</span>
-                <span className="view-label">Focus</span>
-              </button>
-              <button
-                className={`view-toggle-btn ${viewMode === 'graph' ? 'active' : ''}`}
-                onClick={() => setActiveCanvas('graph')}
-                title="Graph View"
-              >
-                <span className="view-icon">◉</span>
-                <span className="view-label">Graph</span>
-              </button>
+              {canvasState.canvases.map((canvas) => (
+                <button
+                  key={canvas.id}
+                  className={`view-toggle-btn ${viewMode === canvas.id ? 'active' : ''}`}
+                  onClick={() => setActiveCanvas(canvas.id)}
+                  title={canvas.name}
+                >
+                  <span className="view-icon">{canvas.icon || '◻'}</span>
+                  <span className="view-label">{canvas.name}</span>
+                </button>
+              ))}
             </div>
           )}
           {!repoPath ? (
