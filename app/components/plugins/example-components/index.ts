@@ -29,6 +29,7 @@ export { AIReviewApp } from './AIReviewApp'
 export { PRReviewQueuePanel } from './PRReviewQueuePanel'
 export { AIChatPanel } from './AIChatPanel'
 export { StandupNotesPanel } from './StandupNotesPanel'
+export { RepositoryManagerPanel } from './RepositoryManagerPanel'
 
 // Widget Components
 export { BranchHealthWidget } from './BranchHealthWidget'
@@ -66,6 +67,10 @@ export function registerExampleComponents(
 
   import('./StandupNotesPanel').then(({ StandupNotesPanel }) => {
     registry.register('StandupNotesPanel', 'panel', StandupNotesPanel)
+  })
+
+  import('./RepositoryManagerPanel').then(({ RepositoryManagerPanel }) => {
+    registry.register('RepositoryManagerPanel', 'panel', RepositoryManagerPanel)
   })
 
   import('./CommitSuggesterWidget').then(({ CommitSuggesterWidget }) => {

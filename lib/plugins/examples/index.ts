@@ -33,6 +33,9 @@ export { prReviewQueuePlugin } from './pr-review-queue-panel'
 /** Standup Notes - Daily standup capture */
 export { standupNotesPlugin } from './standup-notes-panel'
 
+/** Repository Manager - Multi-repo management panel */
+export { repositoryManagerPlugin } from './repository-manager-panel'
+
 // ============================================================================
 // Widget Plugins
 // ============================================================================
@@ -65,6 +68,7 @@ import { teamDashboardPlugin } from './team-dashboard-app'
 import { aiChatPanelPlugin } from './ai-chat-panel'
 import { prReviewQueuePlugin } from './pr-review-queue-panel'
 import { standupNotesPlugin } from './standup-notes-panel'
+import { repositoryManagerPlugin } from './repository-manager-panel'
 import { commitSuggesterWidgetPlugin } from './commit-suggester-widget'
 import { branchHealthWidgetPlugin } from './branch-health-widget'
 import { autoFetchServicePlugin } from './auto-fetch-service'
@@ -81,6 +85,7 @@ export const examplePlugins = [
   aiChatPanelPlugin,
   prReviewQueuePlugin,
   standupNotesPlugin,
+  repositoryManagerPlugin,
   // Widgets
   commitSuggesterWidgetPlugin,
   branchHealthWidgetPlugin,
@@ -94,7 +99,7 @@ export const examplePlugins = [
  */
 export const examplePluginsByType = {
   app: [aiReviewAppPlugin, teamDashboardPlugin],
-  panel: [aiChatPanelPlugin, prReviewQueuePlugin, standupNotesPlugin],
+  panel: [aiChatPanelPlugin, prReviewQueuePlugin, standupNotesPlugin, repositoryManagerPlugin],
   widget: [commitSuggesterWidgetPlugin, branchHealthWidgetPlugin],
   service: [autoFetchServicePlugin, slackNotificationsPlugin],
 }

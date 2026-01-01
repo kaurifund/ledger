@@ -1,14 +1,13 @@
 /**
  * Repository Manager Panel
  *
- * Panel for managing multiple repositories - switch, add, remove.
- * Accessible from plugin settings.
+ * Plugin panel for managing multiple repositories - switch, add, remove.
+ * Provides a richer interface than the header chip switcher.
  */
 
 import { useState, useEffect, useCallback } from 'react'
 import {
   FolderOpen,
-  GitBranch,
   X,
   Check,
   Clock,
@@ -20,6 +19,8 @@ import {
   FolderGit2,
   ChevronRight,
 } from 'lucide-react'
+import type { PluginPanelProps } from '@/lib/plugins/plugin-types'
+import './example-plugin-styles.css'
 
 interface RepositorySummary {
   id: string
@@ -29,12 +30,7 @@ interface RepositorySummary {
   provider: string
 }
 
-interface RepositoryManagerPanelProps {
-  onRepoSwitch?: (path: string) => void
-  onClose?: () => void
-}
-
-export function RepositoryManagerPanel({ onRepoSwitch, onClose }: RepositoryManagerPanelProps) {
+export function RepositoryManagerPanel({ context, onClose }: PluginPanelProps) {
   const [openRepos, setOpenRepos] = useState<RepositorySummary[]>([])
   const [recentRepos, setRecentRepos] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
@@ -73,8 +69,9 @@ export function RepositoryManagerPanel({ onRepoSwitch, onClose }: RepositoryMana
       try {
         const result = await window.conveyor.repo.switchRepository(id)
         if (result.success && result.path) {
-          onRepoSwitch?.(result.path)
+          context.api.refresh()
           await loadRepos()
+          onClose() // Close panel after switch
         } else {
           setError(result.error || 'Failed to switch repository')
         }
@@ -84,7 +81,7 @@ export function RepositoryManagerPanel({ onRepoSwitch, onClose }: RepositoryMana
         setSwitching(null)
       }
     },
-    [onRepoSwitch, loadRepos]
+    [context, loadRepos, onClose]
   )
 
   // Close a repository
@@ -112,13 +109,14 @@ export function RepositoryManagerPanel({ onRepoSwitch, onClose }: RepositoryMana
     try {
       const path = await window.conveyor.repo.selectRepo()
       if (path) {
-        onRepoSwitch?.(path)
+        context.api.refresh()
         await loadRepos()
+        onClose() // Close panel after opening
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to open repository')
     }
-  }, [onRepoSwitch, loadRepos])
+  }, [context, loadRepos, onClose])
 
   // Open a recent repository
   const handleOpenRecent = useCallback(
@@ -128,8 +126,9 @@ export function RepositoryManagerPanel({ onRepoSwitch, onClose }: RepositoryMana
       try {
         const result = await window.conveyor.repo.openRepository(repoPath)
         if (result.success) {
-          onRepoSwitch?.(repoPath)
+          context.api.refresh()
           await loadRepos()
+          onClose() // Close panel after opening
         } else {
           setError(result.error || 'Failed to open repository')
         }
@@ -139,7 +138,7 @@ export function RepositoryManagerPanel({ onRepoSwitch, onClose }: RepositoryMana
         setSwitching(null)
       }
     },
-    [onRepoSwitch, loadRepos]
+    [context, loadRepos, onClose]
   )
 
   // Remove from recent
@@ -185,7 +184,7 @@ export function RepositoryManagerPanel({ onRepoSwitch, onClose }: RepositoryMana
     <div className="repo-manager-panel">
       {/* Header */}
       <div className="repo-manager-header">
-        <h3>Repository Manager</h3>
+        <h3>Repositories</h3>
         <button className="repo-manager-refresh" onClick={loadRepos} title="Refresh">
           <RefreshCw size={14} />
         </button>

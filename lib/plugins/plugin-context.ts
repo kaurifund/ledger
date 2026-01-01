@@ -352,9 +352,22 @@ export function createPluginAPI(
 
 /**
  * Create events interface for a plugin.
- * Provides access to AgentEvents system for subscribing to agent-related events.
+ * Provides unified access to both LedgerEvents and AgentEvents systems.
  *
  * Supported event types:
+ *
+ * LedgerEvents (repo/git operations):
+ * - repo:opened - Repository opened
+ * - repo:closed - Repository closed
+ * - repo:switched - Active repository changed
+ * - repo:refreshed - Repository data refreshed
+ * - git:commit - Commit created
+ * - git:push - Changes pushed
+ * - git:pull - Changes pulled
+ * - git:checkout - Branch checked out
+ * - git:stash - Stash operation performed
+ *
+ * AgentEvents (AI agent activity):
  * - agent:detected - New agent worktree found
  * - agent:removed - Agent worktree removed
  * - agent:active - Agent showing file changes
@@ -365,22 +378,49 @@ export function createPluginAPI(
  * - agent:pr-created - Agent created a PR
  * - agent:conflict - Agent has merge conflicts
  * - agent:behind - Agent branch behind main
- * - '*' - Subscribe to all agent events
+ *
+ * Wildcards:
+ * - '*' - Subscribe to all events (both Ledger and Agent)
  */
 export function createPluginEvents(pluginId: string): PluginEvents {
   const logger = createPluginLogger(pluginId)
 
   return {
     on(type: string, callback: (event: unknown) => void): () => void {
+      const unsubscribers: Array<() => void> = []
+
       // For agent events, delegate to agentEvents system
       if (type.startsWith('agent:') || type === '*') {
-        // Cast to AgentEventType - all agent:* events are supported
-        return agentEvents.on(type as Parameters<typeof agentEvents.on>[0], callback)
+        unsubscribers.push(
+          agentEvents.on(type as Parameters<typeof agentEvents.on>[0], callback)
+        )
       }
 
-      // For other event types, log a warning (future expansion)
-      logger.warn(`Event type "${type}" is not yet supported for plugins`)
-      return () => {} // No-op unsubscribe
+      // For LedgerEvents (repo:* and git:*), delegate to window.ledgerEvents
+      if (type.startsWith('repo:') || type.startsWith('git:') || type === '*') {
+        // Check if ledgerEvents is available (renderer process only)
+        if (typeof window !== 'undefined' && window.ledgerEvents) {
+          // For wildcard, subscribe to all ledger events
+          // For specific types, subscribe to that type
+          const ledgerType = type === '*' ? '*' : type
+          unsubscribers.push(
+            window.ledgerEvents.on(ledgerType as Parameters<typeof window.ledgerEvents.on>[0], callback)
+          )
+        } else {
+          logger.debug(`LedgerEvents not available for type "${type}" (not in renderer process)`)
+        }
+      }
+
+      // If no handlers matched, log a warning
+      if (unsubscribers.length === 0) {
+        logger.warn(`Event type "${type}" is not supported`)
+        return () => {}
+      }
+
+      // Return combined unsubscribe function
+      return () => {
+        unsubscribers.forEach((unsub) => unsub())
+      }
     },
 
     once(type: string, callback: (event: unknown) => void): () => void {
