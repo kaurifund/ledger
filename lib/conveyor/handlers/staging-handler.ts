@@ -14,7 +14,16 @@ export const registerStagingHandlers = () => {
     try {
       return await getWorkingStatus()
     } catch (error) {
-      return null
+      // Return empty status object instead of null to prevent UI crashes
+      console.error('[staging-handler] get-staging-status error:', error)
+      return {
+        hasChanges: false,
+        files: [],
+        stagedCount: 0,
+        unstagedCount: 0,
+        additions: 0,
+        deletions: 0,
+      }
     }
   })
   handle('stage-file', async (filePath: string) => {
