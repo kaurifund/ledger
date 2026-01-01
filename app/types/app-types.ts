@@ -81,7 +81,7 @@ export type EditorPanelType =
   | 'settings'
   | 'empty'
 
-export type VizPanelType = 'git-graph' | 'timeline'
+export type VizPanelType = 'git-graph' | 'timeline' | 'tech-tree'
 
 export type PanelType = ListPanelType | EditorPanelType | VizPanelType
 

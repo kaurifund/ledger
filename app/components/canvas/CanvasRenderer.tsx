@@ -21,6 +21,7 @@ import type {
   GraphCommit,
   WorkingStatus,
   CommitDiff,
+  TechTreeNode,
 } from '../../types/electron'
 import { useCanvas } from './CanvasContext'
 import { Canvas } from './Canvas'
@@ -28,7 +29,7 @@ import { EditorSlot } from './EditorSlot'
 
 // Import panels
 import { PRList, BranchList, WorktreeList, StashList, CommitList, Sidebar } from '../panels/list'
-import { GitGraph } from '../panels/viz'
+import { GitGraph, TechTreeChart } from '../panels/viz'
 
 // ========================================
 // Data Interface
@@ -120,6 +121,9 @@ export interface CanvasHandlers {
   onSelectUncommitted?: () => void
   onDoubleClickUncommitted?: () => void
   onContextMenuUncommitted?: (e: React.MouseEvent, status: WorkingStatus) => void
+  
+  // Tech tree handlers
+  onSelectTechTreeNode?: (branchName: string) => void
   
   // Editor panel rendering (for custom editor content)
   renderEditorContent?: () => ReactNode
@@ -313,6 +317,29 @@ export function CanvasRenderer({
                   onSelectCommit={handlers.onSelectCommit}
                   onDoubleClickCommit={handlers.onDoubleClickCommit}
                   formatRelativeTime={handlers.formatRelativeTime}
+                />
+              </div>
+            </div>
+          )
+
+        case 'tech-tree':
+          return (
+            <div className="viz-panel tech-tree-panel">
+              <div className="column-header">
+                <div className="column-title">
+                  <h2>
+                    <span className="column-icon">{column.icon || '⬡'}</span>
+                    {column.label || 'Tech Tree'}
+                  </h2>
+                </div>
+              </div>
+              <div className="viz-panel-content">
+                <TechTreeChart
+                  limit={25}
+                  formatRelativeTime={handlers.formatRelativeTime}
+                  onSelectNode={(node: TechTreeNode) => {
+                    handlers.onSelectTechTreeNode?.(node.branchName)
+                  }}
                 />
               </div>
             </div>
