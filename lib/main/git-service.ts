@@ -2238,7 +2238,7 @@ export async function getMailmap(): Promise<MailmapEntry[]> {
       // Parse .mailmap format:
       // Canonical Name <canonical@email> Alias Name <alias@email>
       // Canonical Name <canonical@email> <alias@email>
-      const match = trimmed.match(/^(.+?)\s*<([^>]+)>(?:\s+(.+?)\s*)?<([^>]+)>$/)
+      const match = trimmed.match(/^(.+?)\s*<([^>]+)>\s+(?:(.+?)\s+)?<([^>]+)>$/)
       if (match) {
         entries.push({
           canonicalName: match[1].trim(),
