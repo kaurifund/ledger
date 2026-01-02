@@ -11,13 +11,17 @@ import {
   getRepoPath,
 } from '@/lib/main/git-service'
 import { emitGitCheckout, emitGitPush, emitGitPull } from '@/lib/events'
+import { serializeError, logHandlerError } from '@/lib/utils/error-helpers'
 
 export const registerBranchHandlers = () => {
   handle('get-branches', async () => {
     try {
       return await getBranches()
     } catch (error) {
-      return { error: (error as Error).message }
+      // Return empty result for remote repos or on error
+      // This prevents UI errors when .filter() is called on the result
+      console.error('[branch-handler] get-branches error:', error)
+      return { current: '', branches: [] }
     }
   })
 
@@ -25,7 +29,9 @@ export const registerBranchHandlers = () => {
     try {
       return await getBranchesBasic()
     } catch (error) {
-      return { error: (error as Error).message }
+      // Return empty result for remote repos or on error
+      console.error('[branch-handler] get-branches-basic error:', error)
+      return { current: '', branches: [] }
     }
   })
 
@@ -33,7 +39,9 @@ export const registerBranchHandlers = () => {
     try {
       return await getBranchesWithMetadata()
     } catch (error) {
-      return { error: (error as Error).message }
+      // Return empty result for remote repos or on error
+      console.error('[branch-handler] get-branches-with-metadata error:', error)
+      return { current: '', branches: [] }
     }
   })
 
@@ -46,7 +54,7 @@ export const registerBranchHandlers = () => {
       }
       return result
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -54,7 +62,7 @@ export const registerBranchHandlers = () => {
     try {
       return await createBranch(branchName, checkout ?? true)
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -67,7 +75,7 @@ export const registerBranchHandlers = () => {
       }
       return result
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -82,7 +90,7 @@ export const registerBranchHandlers = () => {
       }
       return result
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -96,7 +104,7 @@ export const registerBranchHandlers = () => {
       }
       return result
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 }

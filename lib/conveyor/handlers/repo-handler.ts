@@ -1,9 +1,9 @@
 import { dialog } from 'electron'
 import { simpleGit } from 'simple-git'
 import * as path from 'path'
-import { execSync } from 'child_process'
 import { handle } from '@/lib/main/shared'
-import { setRepoPath, getRepoPath, initializeGlobalStateSync } from '@/lib/main/git-service'
+import { safeExec } from '@/lib/utils/safe-exec'
+import { setRepoPath, getRepoPath, initializeLegacySync } from '@/lib/main/git-service'
 import { getLastRepoPath, saveLastRepoPath, getRecentRepos, addRecentRepo, removeRecentRepo } from '@/lib/main/settings-service'
 import { getRepositoryManager } from '@/lib/repositories'
 import { parseGitHubRepo, createRemoteRepositoryContext } from '@/lib/repositories/repository-context'
@@ -24,8 +24,8 @@ export interface RepositorySummary {
 }
 
 export const registerRepoHandlers = () => {
-  // Initialize global state sync so git-service module state stays in sync with RepositoryManager
-  initializeGlobalStateSync().catch((err) => console.error('Failed to initialize global state sync:', err))
+  // SAFETY: Initialize legacy sync so git-service globals stay in sync with RepositoryManager
+  initializeLegacySync()
 
   handle('select-repo', async () => {
     const result = await dialog.showOpenDialog({
@@ -44,7 +44,7 @@ export const registerRepoHandlers = () => {
     const manager = getRepositoryManager()
     try {
       const ctx = await manager.open(selectedPath)
-      // Also update global state
+      // Also update legacy global state for backward compatibility
       setRepoPath(ctx.path)
       saveLastRepoPath(ctx.path)
 
@@ -55,8 +55,8 @@ export const registerRepoHandlers = () => {
       }
 
       return ctx.path
-    } catch (_error) {
-      // Direct path handling if RepositoryManager fails
+    } catch (error) {
+      // Fall back to legacy behavior if RepositoryManager fails
       setRepoPath(selectedPath)
       saveLastRepoPath(selectedPath)
 
@@ -76,7 +76,7 @@ export const registerRepoHandlers = () => {
     const active = manager.getActive()
     if (active) return active.path
 
-    // Fall back to module state
+    // Fall back to legacy
     return getRepoPath()
   })
 
@@ -135,18 +135,18 @@ export const registerRepoHandlers = () => {
   /**
    * Switch to a repository by ID
    */
-  handle('switch-repository', async (id: string): Promise<{ success: boolean; path?: string; error?: string }> => {
+  handle('switch-repository', async (id: string): Promise<{ success: boolean; path?: string; message?: string }> => {
     const manager = getRepositoryManager()
     const previousPath = getRepoPath()
 
     const success = manager.setActive(id)
     if (!success) {
-      return { success: false, error: 'Repository not found' }
+      return { success: false, message: 'Repository not found' }
     }
 
     const active = manager.getActive()
     if (active) {
-      // Only sync global state for local repos (remote repos have null path)
+      // Only sync legacy state for local repos (remote repos have null path)
       if (active.path) {
         setRepoPath(active.path)
         saveLastRepoPath(active.path)
@@ -161,13 +161,13 @@ export const registerRepoHandlers = () => {
       return { success: true, path: active.path ?? undefined }
     }
 
-    return { success: false, error: 'Failed to switch repository' }
+    return { success: false, message: 'Failed to switch repository' }
   })
 
   /**
    * Close a repository by ID
    */
-  handle('close-repository', (id: string): { success: boolean; error?: string } => {
+  handle('close-repository', (id: string): { success: boolean; message?: string } => {
     const manager = getRepositoryManager()
 
     // Get the repo info before closing
@@ -178,7 +178,7 @@ export const registerRepoHandlers = () => {
 
     const success = manager.close(id)
     if (!success) {
-      return { success: false, error: 'Repository not found' }
+      return { success: false, message: 'Repository not found' }
     }
 
     // Emit close event
@@ -186,7 +186,7 @@ export const registerRepoHandlers = () => {
       emitRepoClosed(closingPath)
     }
 
-    // Update global state
+    // Update legacy state
     const active = manager.getActive()
     setRepoPath(active?.path ?? null)
     if (active && active.path) {
@@ -204,7 +204,7 @@ export const registerRepoHandlers = () => {
   /**
    * Open a repository by path (without dialog)
    */
-  handle('open-repository', async (repoPath: string): Promise<{ success: boolean; id?: string; error?: string }> => {
+  handle('open-repository', async (repoPath: string): Promise<{ success: boolean; id?: string; message?: string }> => {
     const manager = getRepositoryManager()
     const previousPath = getRepoPath()
 
@@ -222,7 +222,7 @@ export const registerRepoHandlers = () => {
 
       return { success: true, id: ctx.id }
     } catch (error) {
-      return { success: false, error: error instanceof Error ? error.message : 'Failed to open repository' }
+      return { success: false, message: error instanceof Error ? error.message : 'Failed to open repository' }
     }
   })
 
@@ -256,12 +256,12 @@ export const registerRepoHandlers = () => {
     id?: string
     name?: string
     fullName?: string
-    error?: string
+    message?: string
   }> => {
     // Parse the input to extract owner/repo
     const remoteInfo = parseGitHubRepo(repoInput)
     if (!remoteInfo) {
-      return { success: false, error: 'Invalid repository format. Use owner/repo or a GitHub URL.' }
+      return { success: false, message: 'Invalid repository format. Use owner/repo or a GitHub URL.' }
     }
 
     const { owner, repo, fullName } = remoteInfo
@@ -275,13 +275,19 @@ export const registerRepoHandlers = () => {
     }
 
     // Use gh CLI to validate the repo exists and get info
+    // Uses safeExec to prevent command injection from owner/repo values
     try {
-      const result = execSync(
-        `gh api repos/${owner}/${repo} --jq '{default_branch: .default_branch, html_url: .html_url}'`,
-        { encoding: 'utf-8', timeout: 30000 }
+      const apiResult = await safeExec(
+        'gh',
+        ['api', `repos/${owner}/${repo}`, '--jq', '{default_branch: .default_branch, html_url: .html_url}'],
+        { timeout: 30000 }
       )
 
-      const repoInfo = JSON.parse(result.trim())
+      if (!apiResult.success) {
+        throw new Error(apiResult.stderr || 'Failed to fetch repository info')
+      }
+
+      const repoInfo = JSON.parse(apiResult.stdout.trim())
 
       // Create remote repository context
       const context = createRemoteRepositoryContext(owner, repo, repoInfo)
@@ -294,20 +300,20 @@ export const registerRepoHandlers = () => {
 
       return { success: true, id: context.id, name: repo, fullName }
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Failed to connect to repository'
+      const errorMessage = error instanceof Error ? error.message : 'Failed to connect to repository'
 
       // Check for common errors
-      if (message.includes('Could not resolve')) {
-        return { success: false, error: `Repository not found: ${fullName}` }
+      if (errorMessage.includes('Could not resolve')) {
+        return { success: false, message: `Repository not found: ${fullName}` }
       }
-      if (message.includes('gh: command not found') || message.includes('not recognized')) {
-        return { success: false, error: 'GitHub CLI (gh) is not installed. Please install it from https://cli.github.com' }
+      if (errorMessage.includes('gh: command not found') || errorMessage.includes('not recognized')) {
+        return { success: false, message: 'GitHub CLI (gh) is not installed. Please install it from https://cli.github.com' }
       }
-      if (message.includes('not logged in')) {
-        return { success: false, error: 'Not authenticated with GitHub. Run: gh auth login' }
+      if (errorMessage.includes('not logged in')) {
+        return { success: false, message: 'Not authenticated with GitHub. Run: gh auth login' }
       }
 
-      return { success: false, error: message }
+      return { success: false, message: errorMessage }
     }
   })
 
@@ -315,7 +321,7 @@ export const registerRepoHandlers = () => {
    * Clone a remote repository
    * Shows a folder picker dialog to select destination, then clones the repo
    */
-  handle('clone-repository', async (gitUrl: string): Promise<{ success: boolean; path?: string; error?: string }> => {
+  handle('clone-repository', async (gitUrl: string): Promise<{ success: boolean; path?: string; message?: string }> => {
     // Show folder picker for destination
     const result = await dialog.showOpenDialog({
       properties: ['openDirectory', 'createDirectory'],
@@ -324,7 +330,7 @@ export const registerRepoHandlers = () => {
     })
 
     if (result.canceled || result.filePaths.length === 0) {
-      return { success: false, error: 'Clone cancelled' }
+      return { success: false, message: 'Clone cancelled' }
     }
 
     const destDir = result.filePaths[0]
@@ -367,7 +373,7 @@ export const registerRepoHandlers = () => {
     } catch (error) {
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Failed to clone repository'
+        message: error instanceof Error ? error.message : 'Failed to clone repository'
       }
     }
   })

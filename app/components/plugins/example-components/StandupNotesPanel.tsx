@@ -5,7 +5,7 @@
  * Shows commits and PRs from the selected time period.
  */
 
-import { useState, useEffect, useMemo, useCallback } from 'react'
+import { useState, useEffect, useMemo, useCallback, useRef } from 'react'
 import {
   Calendar,
   GitCommit,
@@ -27,6 +27,18 @@ export function StandupNotesPanel({ context, repoPath, onClose }: PluginPanelPro
   const [loading, setLoading] = useState(true)
   const [copied, setCopied] = useState(false)
 
+  // Ref for copy timeout cleanup
+  const copyTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (copyTimeoutRef.current) {
+        clearTimeout(copyTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Load data
   useEffect(() => {
     const loadData = async () => {
@@ -36,8 +48,9 @@ export function StandupNotesPanel({ context, repoPath, onClose }: PluginPanelPro
           context.api.getCommits(),
           context.api.getPullRequests(),
         ])
-        setCommits(commitsData)
-        setPullRequests(prsData)
+        // Ensure we always set arrays (API might return null/undefined on error)
+        setCommits(Array.isArray(commitsData) ? commitsData : [])
+        setPullRequests(Array.isArray(prsData) ? prsData : [])
       } catch (error) {
         console.error('Failed to load standup data:', error)
       } finally {
@@ -139,7 +152,9 @@ export function StandupNotesPanel({ context, repoPath, onClose }: PluginPanelPro
     try {
       await navigator.clipboard.writeText(standupNotes)
       setCopied(true)
-      setTimeout(() => setCopied(false), 2000)
+      // Clear any pending timeout and set new one (with cleanup tracking)
+      if (copyTimeoutRef.current) clearTimeout(copyTimeoutRef.current)
+      copyTimeoutRef.current = setTimeout(() => setCopied(false), 2000)
     } catch (error) {
       console.error('Failed to copy:', error)
     }
@@ -153,8 +168,9 @@ export function StandupNotesPanel({ context, repoPath, onClose }: PluginPanelPro
         context.api.refreshCommits?.() || context.api.getCommits(),
         context.api.refreshPullRequests?.() || context.api.getPullRequests(),
       ])
-      setCommits(commitsData)
-      setPullRequests(prsData)
+      // Ensure we always set arrays (API might return null/undefined on error)
+      setCommits(Array.isArray(commitsData) ? commitsData : [])
+      setPullRequests(Array.isArray(prsData) ? prsData : [])
     } catch (error) {
       console.error('Failed to refresh:', error)
     } finally {

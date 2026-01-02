@@ -44,6 +44,21 @@ export function AIChatPanel({ context, repoPath, onClose }: PluginPanelProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLInputElement>(null)
 
+  // Refs for cleanup
+  const isMountedRef = useRef(true)
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cleanup on unmount
+  useEffect(() => {
+    isMountedRef.current = true
+    return () => {
+      isMountedRef.current = false
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current)
+      }
+    }
+  }, [])
+
   // Load repo context
   useEffect(() => {
     const loadContext = async () => {
@@ -53,8 +68,11 @@ export function AIChatPanel({ context, repoPath, onClose }: PluginPanelProps) {
           context.api.getBranches(),
           context.api.getCurrentBranch(),
         ])
-        setCommits(commitsData.slice(0, 50))
-        setBranches(branchesData)
+        // Ensure we always set arrays (API might return null/undefined on error)
+        const commits = Array.isArray(commitsData) ? commitsData : []
+        const branches = Array.isArray(branchesData) ? branchesData : []
+        setCommits(commits.slice(0, 50))
+        setBranches(branches)
         setCurrentBranch(branch || 'main')
       } catch (error) {
         console.error('Failed to load repo context:', error)
@@ -216,7 +234,13 @@ export function AIChatPanel({ context, repoPath, onClose }: PluginPanelProps) {
     // Simulate typing delay
     await new Promise((resolve) => setTimeout(resolve, 500 + Math.random() * 1000))
 
+    // Check if still mounted before continuing
+    if (!isMountedRef.current) return
+
     const response = await generateResponse(userMessage.content)
+
+    // Check again after async operation
+    if (!isMountedRef.current) return
 
     const assistantMessage: Message = {
       id: `msg-${Date.now()}`,
@@ -232,8 +256,9 @@ export function AIChatPanel({ context, repoPath, onClose }: PluginPanelProps) {
   const handleQuickAction = useCallback(
     (action: QuickAction) => {
       setInput(action.prompt)
-      // Auto-send after a brief delay
-      setTimeout(() => {
+      // Auto-focus after a brief delay (with cleanup tracking)
+      if (focusTimeoutRef.current) clearTimeout(focusTimeoutRef.current)
+      focusTimeoutRef.current = setTimeout(() => {
         inputRef.current?.focus()
       }, 100)
     },

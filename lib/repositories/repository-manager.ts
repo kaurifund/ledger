@@ -12,15 +12,21 @@ import { RepositoryContext, RepositoryType, createRepositoryContext } from './re
  * Key design decisions:
  * 1. Singleton pattern ensures one source of truth
  * 2. Map-based storage for O(1) lookups by ID or path
- * 3. Active repo concept for single-repo operations
+ * 3. Active repo concept for backward compatibility with existing handlers
  * 4. Event-like callbacks for UI updates (future: proper events)
+ * 5. LRU eviction policy to prevent unbounded memory growth
  *
  * SAFETY GUARANTEES:
  * - Each context has a unique ID that never changes
  * - switchEpoch increments on every repo change for stale detection
  * - onChange callbacks fire AFTER state is consistent
- * - Global state is always kept in sync with active context
+ * - Legacy state is always kept in sync with active context
+ * - Max 12 repositories to prevent memory issues (LRU eviction)
  */
+
+/** Maximum number of repositories to keep open before evicting LRU entries */
+const MAX_REPOSITORIES = 12
+
 export class RepositoryManager {
   private static instance: RepositoryManager | null = null
 
@@ -36,8 +42,8 @@ export class RepositoryManager {
   // Callbacks for state changes (simple event system)
   private onChangeCallbacks: Set<() => void> = new Set()
 
-  // Callback to sync global state (injected from git-service)
-  private globalStateSyncCallback: ((path: string | null) => void) | null = null
+  // Callback to sync legacy global state (injected from git-service)
+  private legacySyncCallback: ((path: string | null) => void) | null = null
 
   private constructor() {
     // Private constructor enforces singleton
@@ -60,18 +66,18 @@ export class RepositoryManager {
   }
 
   /**
-   * Set a callback to sync global state
+   * Set a callback to sync legacy global state
    * This ensures git-service's global `git` and `repoPath` stay in sync
    */
-  setGlobalStateSyncCallback(callback: (path: string | null) => void): void {
-    this.globalStateSyncCallback = callback
+  setLegacySyncCallback(callback: (path: string | null) => void): void {
+    this.legacySyncCallback = callback
   }
 
-  private syncGlobalState(): void {
-    if (this.globalStateSyncCallback) {
+  private syncLegacyState(): void {
+    if (this.legacySyncCallback) {
       const active = this.getActive()
       // Only sync local repos (remote repos have null path)
-      this.globalStateSyncCallback(active?.path ?? null)
+      this.legacySyncCallback(active?.path ?? null)
     }
   }
 
@@ -108,6 +114,54 @@ export class RepositoryManager {
   }
 
   /**
+   * Evict least recently used repositories if at capacity
+   *
+   * Called before adding new repos to ensure we stay within MAX_REPOSITORIES.
+   * Never evicts the currently active repository.
+   *
+   * @returns Array of evicted repository IDs
+   */
+  private evictLRUIfNeeded(): string[] {
+    const evicted: string[] = []
+
+    // Check if we need to evict (at or over capacity)
+    while (this.contexts.size >= MAX_REPOSITORIES) {
+      // Get all repos sorted by lastAccessed (oldest first)
+      const sortedByLRU = Array.from(this.contexts.values())
+        .filter((ctx) => ctx.id !== this.activeId) // Never evict active repo
+        .sort((a, b) => a.lastAccessed.getTime() - b.lastAccessed.getTime())
+
+      if (sortedByLRU.length === 0) {
+        // All repos are the active one (shouldn't happen with MAX > 1)
+        console.warn('[RepositoryManager] Cannot evict: only active repo remains')
+        break
+      }
+
+      // Evict the oldest (LRU) repo
+      const lruContext = sortedByLRU[0]
+      console.info(`[RepositoryManager] Evicting LRU repository: ${lruContext.name} (last accessed: ${lruContext.lastAccessed.toISOString()})`)
+
+      // Clean up SimpleGit instance
+      if (lruContext.git) {
+        ;(lruContext as { git: null }).git = null
+      }
+
+      // Remove from maps
+      this.contexts.delete(lruContext.id)
+      if (lruContext.path) {
+        this.pathIndex.delete(lruContext.path)
+      }
+      if (lruContext.remote?.fullName) {
+        this.remoteIndex.delete(lruContext.remote.fullName)
+      }
+
+      evicted.push(lruContext.id)
+    }
+
+    return evicted
+  }
+
+  /**
    * Open a repository at the given path
    *
    * If the repo is already open, returns the existing context.
@@ -115,7 +169,7 @@ export class RepositoryManager {
    *
    * SAFETY: When switching active repos:
    * - Epoch is incremented to invalidate stale operations
-   * - Global state is synced
+   * - Legacy state is synced
    * - onChange fires after state is consistent
    *
    * @param repoPath - Absolute path to the git repository
@@ -133,12 +187,15 @@ export class RepositoryManager {
         // SAFETY: Increment epoch when switching repos
         this._switchEpoch++
         this.activeId = existingId
-        this.syncGlobalState()
+        this.syncLegacyState()
         this.notifyChange()
       }
 
       return existing
     }
+
+    // Evict LRU repos if at capacity before adding new one
+    this.evictLRUIfNeeded()
 
     // Create new context
     const context = await createRepositoryContext(repoPath)
@@ -153,7 +210,7 @@ export class RepositoryManager {
       // SAFETY: Increment epoch when switching repos
       this._switchEpoch++
       this.activeId = context.id
-      this.syncGlobalState()
+      this.syncLegacyState()
     }
 
     this.notifyChange()
@@ -203,7 +260,7 @@ export class RepositoryManager {
   /**
    * Switch to a different repository
    *
-   * SAFETY: Increments epoch, syncs global state, notifies listeners
+   * SAFETY: Increments epoch, syncs legacy state, notifies listeners
    *
    * @param id - The repository ID to switch to
    * @returns true if switched, false if ID not found
@@ -219,7 +276,7 @@ export class RepositoryManager {
       this.activeId = id
       const context = this.contexts.get(id)!
       context.lastAccessed = new Date()
-      this.syncGlobalState()
+      this.syncLegacyState()
       this.notifyChange()
     }
 
@@ -231,7 +288,7 @@ export class RepositoryManager {
    *
    * Removes it from the manager. If it was active, clears active.
    *
-   * SAFETY: If closing the active repo, increments epoch and syncs global state
+   * SAFETY: If closing the active repo, increments epoch and syncs legacy state
    *
    * @param id - The repository ID to close
    * @returns true if closed, false if ID not found
@@ -243,6 +300,14 @@ export class RepositoryManager {
     }
 
     const wasActive = this.activeId === id
+
+    // Clean up SimpleGit instance to release resources
+    // Note: SimpleGit doesn't have explicit cleanup, but nulling prevents further operations
+    // and allows GC to collect the instance and any associated child processes
+    if (context.git) {
+      // Cast to allow nulling - the context is being removed anyway
+      ;(context as { git: null }).git = null
+    }
 
     this.contexts.delete(id)
     // Remove from appropriate index
@@ -266,7 +331,7 @@ export class RepositoryManager {
         this.activeId = null
       }
 
-      this.syncGlobalState()
+      this.syncLegacyState()
     }
 
     this.notifyChange()
@@ -347,13 +412,16 @@ export class RepositoryManager {
         if (makeActive && this.activeId !== existingId) {
           this._switchEpoch++
           this.activeId = existingId
-          this.syncGlobalState()
+          this.syncLegacyState()
           this.notifyChange()
         }
 
         return existing
       }
     }
+
+    // Evict LRU repos if at capacity before adding new one
+    this.evictLRUIfNeeded()
 
     // Store in maps
     this.contexts.set(context.id, context)
@@ -364,7 +432,7 @@ export class RepositoryManager {
     if (makeActive) {
       this._switchEpoch++
       this.activeId = context.id
-      this.syncGlobalState()
+      this.syncLegacyState()
     }
 
     this.notifyChange()

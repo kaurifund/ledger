@@ -8,6 +8,7 @@ import {
   createWorktree,
 } from '@/lib/main/git-service'
 import { agentEvents } from '@/lib/plugins/agent-events'
+import { serializeError, logHandlerError } from '@/lib/utils/error-helpers'
 
 export const registerWorktreeHandlers = () => {
   handle('get-worktrees', async () => {
@@ -17,7 +18,10 @@ export const registerWorktreeHandlers = () => {
       agentEvents.updateFromWorktrees(worktrees)
       return worktrees
     } catch (error) {
-      return { error: (error as Error).message }
+      // Return empty array for remote repos or on error
+      // This prevents UI errors when array methods are called on the result
+      console.error('[worktree-handler] get-worktrees error:', error)
+      return []
     }
   })
 
@@ -26,15 +30,15 @@ export const registerWorktreeHandlers = () => {
       await shell.openPath(worktreePath)
       return { success: true, message: `Opened ${worktreePath}` }
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
   handle('convert-worktree-to-branch', async (worktreePath: string) => {
     try {
       return await convertWorktreeToBranch(worktreePath)
-    } catch (_error) {
-      return null
+    } catch (error) {
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -42,7 +46,7 @@ export const registerWorktreeHandlers = () => {
     try {
       return await applyWorktreeChanges(worktreePath)
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -50,7 +54,7 @@ export const registerWorktreeHandlers = () => {
     try {
       return await removeWorktree(worktreePath, force)
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -58,7 +62,7 @@ export const registerWorktreeHandlers = () => {
     try {
       return await createWorktree(options)
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 

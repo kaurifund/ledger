@@ -27,7 +27,7 @@ export async function initializeGlobalStateSync(): Promise<void> {
   // Dynamic import to avoid circular dependency
   const { getRepositoryManager } = await import('@/lib/repositories')
   const manager = getRepositoryManager()
-  manager.setGlobalStateSyncCallback((path: string | null) => {
+  manager.setLegacySyncCallback((path: string | null) => {
     if (path) {
       repoPath = path
       git = simpleGit(path)
@@ -37,6 +37,9 @@ export async function initializeGlobalStateSync(): Promise<void> {
     }
   })
 }
+
+// Alias for compatibility
+export const initializeLegacySync = initializeGlobalStateSync
 
 export interface BranchInfo {
   name: string

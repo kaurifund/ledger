@@ -8,20 +8,30 @@ import {
   getFileDiff,
   getWorkingStatus,
 } from '@/lib/main/git-service'
+import { serializeError, logHandlerError } from '@/lib/utils/error-helpers'
 
 export const registerStagingHandlers = () => {
   handle('get-staging-status', async () => {
     try {
       return await getWorkingStatus()
-    } catch (_error) {
-      return null
+    } catch (error) {
+      // Return empty status object instead of null to prevent UI crashes
+      console.error('[staging-handler] get-staging-status error:', error)
+      return {
+        hasChanges: false,
+        files: [],
+        stagedCount: 0,
+        unstagedCount: 0,
+        additions: 0,
+        deletions: 0,
+      }
     }
   })
   handle('stage-file', async (filePath: string) => {
     try {
       return await stageFile(filePath)
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -29,7 +39,7 @@ export const registerStagingHandlers = () => {
     try {
       return await unstageFile(filePath)
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -37,7 +47,7 @@ export const registerStagingHandlers = () => {
     try {
       return await stageAll()
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -45,7 +55,7 @@ export const registerStagingHandlers = () => {
     try {
       return await unstageAll()
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 
@@ -53,7 +63,7 @@ export const registerStagingHandlers = () => {
     try {
       return await discardFileChanges(filePath)
     } catch (error) {
-      return { success: false, message: (error as Error).message }
+      return { success: false, message: serializeError(error) }
     }
   })
 

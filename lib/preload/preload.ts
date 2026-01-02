@@ -205,20 +205,26 @@ const electronAPI = {
   getSiblingRepos: () => ipcRenderer.invoke('get-sibling-repos'),
 }
 
-// Use `contextBridge` APIs to expose APIs to
-// renderer only if context isolation is enabled, otherwise
-// just add to the DOM global.
+// Security verification (from kaurifund's bug fix)
+if (!process.contextIsolated) {
+  console.error(
+    '[SECURITY] Context isolation is DISABLED! This is a critical security risk.\n' +
+    'Ensure webPreferences.contextIsolation is set to true in lib/main/app.ts'
+  )
+}
+
+// Expose APIs to renderer via contextBridge
 if (process.contextIsolated) {
   try {
-    // Expose all three APIs for gradual migration
     contextBridge.exposeInMainWorld('conveyor', conveyor)
     contextBridge.exposeInMainWorld('ledgerEvents', events)
     contextBridge.exposeInMainWorld('electronAPI', electronAPI)
   } catch (error) {
-    console.error(error)
+    console.error('[Preload] Failed to expose APIs:', error)
   }
 } else {
-  window.conveyor = conveyor
-  window.ledgerEvents = events
-  window.electronAPI = electronAPI
+  // Fallback for testing without context isolation
+  ;(window as unknown as { conveyor: typeof conveyor }).conveyor = conveyor
+  ;(window as unknown as { ledgerEvents: typeof events }).ledgerEvents = events
+  ;(window as unknown as { electronAPI: typeof electronAPI }).electronAPI = electronAPI
 }
