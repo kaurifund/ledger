@@ -135,6 +135,23 @@ function isValidGitUrl(url: string): boolean {
 
 Prevents: `https://evil.com/; rm -rf /`, command substitution
 
+### Path Traversal Prevention
+
+File path operations validate against directory traversal attacks:
+
+```typescript
+// Security: Validate path doesn't contain traversal attempts
+const resolvedPath = path.resolve(folderPath)
+if (folderPath.includes('..') || resolvedPath !== path.normalize(folderPath)) {
+  return { success: false, message: 'Invalid folder path: path traversal not allowed' }
+}
+
+// Security: Ensure path is absolute to prevent relative path attacks
+if (!path.isAbsolute(folderPath)) {
+  return { success: false, message: 'Folder path must be absolute' }
+}
+```
+
 ### Protected Operations
 
 | Operation | Protection Method |
@@ -144,6 +161,7 @@ Prevents: `https://evil.com/; rm -rf /`, command substitution
 | PR create/comment | safeExec (args array) |
 | PR merge | safeExec (args array) |
 | Open URL | safeExec (URL as single arg) |
+| Worktree creation | Path traversal validation |
 
 ## Plugin Permission System
 

@@ -294,7 +294,7 @@ function getContextDependencies(): PluginContextDependencies {
         return []
       },
       getCommitHistory: async (limit?: number) => {
-        const commits = await window.conveyor.commit.getCommitHistory(undefined, limit)
+        const commits = await window.conveyor.commit.getCommitHistory(limit)
         useRepositoryStore.getState().setCommits(commits)
         return commits
       },

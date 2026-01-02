@@ -596,6 +596,7 @@ function createStubAPI(): PluginAPI {
     getPullRequests: async () => [],
     getCommits: async () => [],
     getWorkingStatus: async () => null,
+    getStagingStatus: async () => null,
     git: async () => '',
     showNotification: () => {},
     openPanel: () => {},

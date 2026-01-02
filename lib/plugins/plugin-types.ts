@@ -452,8 +452,10 @@ export interface PluginAPI {
   getPullRequests(): Promise<PullRequest[]>
   /** Get commits */
   getCommits(limit?: number): Promise<Commit[]>
-  /** Get working status */
+  /** Get working status (alias for getStagingStatus for backwards compatibility) */
   getWorkingStatus(): Promise<unknown>
+  /** Get staging status (fetches fresh data via IPC when available) */
+  getStagingStatus(): Promise<unknown>
   /** Execute a git command */
   git(args: string[]): Promise<string>
   /** Show a notification */
