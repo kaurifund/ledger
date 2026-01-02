@@ -6,6 +6,24 @@
  */
 
 import type { AppPlugin, PluginContext } from '../plugin-types'
+import type { AgentEvent } from '../agent-events'
+
+/**
+ * Type guard to safely extract AgentEvent from unknown event
+ */
+function getAgentEventData(event: unknown): AgentEvent | null {
+  if (!event || typeof event !== 'object') return null
+  const e = event as Record<string, unknown>
+  if (
+    typeof e.type === 'string' &&
+    e.type.startsWith('agent:') &&
+    typeof e.agentType === 'string' &&
+    typeof e.worktreePath === 'string'
+  ) {
+    return event as AgentEvent
+  }
+  return null
+}
 
 /**
  * Agent Events Inbox App
@@ -105,19 +123,29 @@ export const agentEventsInboxPlugin: AppPlugin = {
   async activate(context: PluginContext): Promise<void> {
     context.logger.info('Agent Events Inbox activated')
 
-    // Subscribe to agent events
+    // Subscribe to agent events with proper type validation
     context.events.on('agent:detected', (event) => {
-      context.logger.debug('Agent detected:', event)
+      const agentEvent = getAgentEventData(event)
+      if (agentEvent) {
+        context.logger.debug('Agent detected:', agentEvent.agentType, agentEvent.worktreePath)
+      }
     })
 
     context.events.on('agent:commit', async (event) => {
+      const agentEvent = getAgentEventData(event)
+      if (!agentEvent) return
+
       const notifyOnCommit = await context.storage.get<boolean>('notifyOnCommit')
       if (notifyOnCommit !== false) {
-        context.api.showNotification(`Agent committed: ${(event as { data?: { commitMessage?: string } }).data?.commitMessage || 'New commit'}`, 'info')
+        const message = agentEvent.data?.commitMessage || 'New commit'
+        context.api.showNotification(`Agent committed: ${message}`, 'info')
       }
     })
 
     context.events.on('agent:conflict', async (event) => {
+      const agentEvent = getAgentEventData(event)
+      if (!agentEvent) return
+
       const notifyOnConflict = await context.storage.get<boolean>('notifyOnConflict')
       if (notifyOnConflict !== false) {
         context.api.showNotification('Agent has merge conflicts!', 'warning')

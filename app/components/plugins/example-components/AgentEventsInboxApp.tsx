@@ -33,6 +33,20 @@ import type { PluginAppProps } from '@/lib/plugins/plugin-types'
 import type { AgentEvent, AgentEventType, AgentState } from '@/lib/plugins/agent-events'
 import './example-plugin-styles.css'
 
+// Type guard for AgentEvent - validates event structure at runtime
+function isAgentEvent(event: unknown): event is AgentEvent {
+  if (!event || typeof event !== 'object') return false
+  const e = event as Record<string, unknown>
+  return (
+    typeof e.type === 'string' &&
+    e.type.startsWith('agent:') &&
+    typeof e.agentType === 'string' &&
+    typeof e.worktreePath === 'string' &&
+    (e.branch === null || typeof e.branch === 'string') &&
+    e.timestamp instanceof Date
+  )
+}
+
 // Event type metadata for display
 const EVENT_TYPE_META: Record<AgentEventType, { label: string; icon: typeof Inbox; color: string }> = {
   'agent:detected': { label: 'Agent Detected', icon: Bot, color: 'var(--color-blue)' },
@@ -134,7 +148,13 @@ export function AgentEventsInboxApp({ context, repoPath, activeNavItem, onNaviga
       const unsub = context.events.on(eventType, (event) => {
         if (!isMountedRef.current) return
 
-        const agentEvent = event as AgentEvent
+        // Validate event structure before processing
+        if (!isAgentEvent(event)) {
+          context.logger.warn('Received invalid agent event:', event)
+          return
+        }
+
+        const agentEvent = event
         const storedEvent: StoredEvent = {
           ...agentEvent,
           id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
@@ -150,14 +170,14 @@ export function AgentEventsInboxApp({ context, repoPath, activeNavItem, onNaviga
           return newEvents
         })
 
-        // Update agents list
+        // Update agents list - use agentEvent.type (not loop variable) to avoid closure bug
         setAgents((prev) => {
           const existingIndex = prev.findIndex((a) => a.worktreePath === agentEvent.worktreePath)
           const agentState: AgentState = {
             agentType: agentEvent.agentType,
             worktreePath: agentEvent.worktreePath,
             branch: agentEvent.branch,
-            status: eventType === 'agent:active' ? 'active' : eventType === 'agent:idle' ? 'idle' : eventType === 'agent:stale' ? 'stale' : 'unknown',
+            status: agentEvent.type === 'agent:active' ? 'active' : agentEvent.type === 'agent:idle' ? 'idle' : agentEvent.type === 'agent:stale' ? 'stale' : 'unknown',
             lastActivity: agentEvent.timestamp,
             changedFiles: agentEvent.data?.changedFiles || 0,
             additions: agentEvent.data?.additions || 0,
@@ -168,9 +188,9 @@ export function AgentEventsInboxApp({ context, repoPath, activeNavItem, onNaviga
             const updated = [...prev]
             updated[existingIndex] = agentState
             return updated
-          } else if (eventType === 'agent:detected') {
+          } else if (agentEvent.type === 'agent:detected') {
             return [...prev, agentState]
-          } else if (eventType === 'agent:removed') {
+          } else if (agentEvent.type === 'agent:removed') {
             return prev.filter((a) => a.worktreePath !== agentEvent.worktreePath)
           }
           return prev

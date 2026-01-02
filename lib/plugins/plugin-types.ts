@@ -462,8 +462,8 @@ export interface PluginAPI {
   showNotification(message: string, type?: 'info' | 'success' | 'warning' | 'error'): void
   /** Open a panel plugin */
   openPanel(pluginId: string, data?: unknown): void
-  /** Close a panel plugin */
-  closePanel(pluginId: string): void
+  /** Close all panels opened by this plugin */
+  closePanel(): void
   /** Navigate to an app plugin */
   navigateToApp(pluginId: string): void
   /** Refresh repository data */

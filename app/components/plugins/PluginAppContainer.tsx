@@ -269,6 +269,15 @@ function getContextDependencies(): PluginContextDependencies {
 
     // IPC functions for fetching fresh data
     // These update the store AND return the data for immediate use
+    //
+    // NOTE: Conveyor API response formats vary by endpoint:
+    // - getBranches: Returns { current, branches } wrapper object
+    // - getWorktrees: Returns array directly (or { error } on failure)
+    // - getPullRequests: Returns { prs, error? } wrapper object
+    // - getCommitHistory: Returns array directly
+    // - getStagingStatus: Returns object directly (or null)
+    //
+    // Each handler below normalizes these to return consistent data types.
     ipc: {
       getBranches: async () => {
         const result = await window.conveyor.branch.getBranches()
@@ -316,15 +325,27 @@ function getContextDependencies(): PluginContextDependencies {
  */
 const pluginContextCache = new Map<string, PluginContext>()
 
+/**
+ * Track event subscriptions for cleanup.
+ * Stored at module level to allow cleanup on hot reload or app shutdown.
+ */
+const cacheCleanupUnsubscribers: Array<() => void> = []
+
 // Subscribe to plugin deactivation events to clear cached contexts
 // This ensures plugins get fresh contexts when reactivated
 if (typeof window !== 'undefined') {
-  pluginManager.on('deactivated', (event) => {
+  // Clear any previous subscriptions (handles hot reload)
+  cacheCleanupUnsubscribers.forEach((unsub) => unsub())
+  cacheCleanupUnsubscribers.length = 0
+
+  const unsubDeactivated = pluginManager.on('deactivated', (event) => {
     pluginContextCache.delete(event.pluginId)
   })
-  pluginManager.on('unregistered', (event) => {
+  const unsubUnregistered = pluginManager.on('unregistered', (event) => {
     pluginContextCache.delete(event.pluginId)
   })
+
+  cacheCleanupUnsubscribers.push(unsubDeactivated, unsubUnregistered)
 }
 
 /**
